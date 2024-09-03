@@ -1,0 +1,59 @@
+.control-panel {
+    position: fixed;
+    right: 0; /* Pasek po prawej stronie */
+    top: 0;
+    bottom: 0;
+    width: 80px; /* Szerokość paska */
+    background-color: #f4f4f4;
+    padding: 20px 10px; /* Dostosowane paddingi */
+    box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: transform 0.3s ease-in-out;
+}
+
+.control-panel button {
+    background: none;
+    border: none;
+    margin-bottom: 20px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.control-panel button img {
+    width: 40px; /* Dopasowanie rozmiaru ikon */
+    height: 40px;
+    transition: transform 0.2s;
+}
+
+.control-panel button:hover img {
+    transform: scale(1.1);
+}
+
+.control-panel button:active img {
+    transform: scale(0.9);
+}
+
+/* Stylizacja dla ukrytego panelu kontrolnego */
+.sidebar-closed .control-panel {
+    transform: translateX(100%); /* Przesuwa panel poza ekran */
+}
+
+.sidebar-toggle {
+    position: fixed;
+    top: 50%;
+    right: 80px; /* Przycisk zaraz obok paska */
+    transform: translateY(-50%);
+    background-color: #333;
+    color: white;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    z-index: 1000;
+    border-radius: 0 5px 5px 0;
+}
+
+.sidebar-closed .sidebar-toggle {
+    right: 0; /* Przycisk przesuwa się do prawej krawędzi ekranu */
+}

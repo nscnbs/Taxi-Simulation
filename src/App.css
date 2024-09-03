@@ -1,0 +1,56 @@
+/* Ustawienia dla paska bocznego */
+.control-panel {
+  position: fixed;
+  right: 0; /* Pasek po prawej stronie */
+  top: 0;
+  bottom: 0;
+  width: 90px;
+  background-color: rgba(0, 0, 0, 0.6); /* Ciemne, przezroczyste tło */
+  padding: 20px;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Wycentrowanie ikon w poziomie */
+  justify-content: space-between; /* Równomierne rozmieszczenie ikon na całej wysokości paska */
+  transition: transform 0.3s ease; /* Animacja wysuwania się paska */
+  z-index: 1000; /* Nadanie paska większego priorytetu w stosie elementów */
+}
+
+.control-panel.sidebar-closed {
+  transform: translateX(100%); /* Ukrycie paska poza ekranem */
+}
+
+/* Stylizacja przycisków */
+.control-panel button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.control-panel button img {
+  width: 60px; /* Szerokość ikony */
+  height: 60px; /* Wysokość ikony */
+  object-fit: contain; /* Zapewnienie, że ikony będą dobrze skalowane */
+}
+
+/* Przycisk do otwierania/zamykania paska */
+.toggle-button {
+  position: fixed;
+  right: 90px; /* Przycisk umieszczony tuż obok paska */
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: rgba(0, 0, 0, 0.7);
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  z-index: 1001; /* Większy priorytet nad panelem bocznym */
+  padding: 10px;
+  border-radius: 5px 0 0 5px;
+  transition: right 0.3s ease;
+}
+
+.sidebar-closed ~ .toggle-button {
+  right: 0; /* Przesunięcie przycisku do krawędzi, gdy pasek jest zamknięty */
+}
