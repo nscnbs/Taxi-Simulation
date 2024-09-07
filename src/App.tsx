@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import TaxiList from './components/TaxiList';
 import ClientList from './components/ClientList';
 import ControlPanel from './components/ControlPanel';
+import Map from './components/Map';
 import './App.css';
-import { Taxi, Client } from './types'; // Import typów
+import { Taxi, Client } from './types';
 
 function App() {
   const [taxis, setTaxis] = useState<Taxi[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  const [sidebarOpen, setSidebarOpen] = useState(true); // Nowa zmienna stanu
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const mapCenter = { lat: 52.2297, lng: 21.0122 }; // Domyślne centrum mapy (Warszawa)
 
   useEffect(() => {
     fetch("/api/taxis")
@@ -38,13 +40,16 @@ function App() {
   };
 
   const handleStopSimulation = () => {
-    // Obsługa zatrzymania symulacji
+    fetch("/api/simulation/stop")
+      .then(response => response.json())
+      .then(data => setTaxis(data))
+      .catch(error => console.error("Error stopping simulation:", error));
   };
 
   const handleRestartSimulation = () => {
     fetch("/api/simulation/restart")
       .then(response => response.json())
-      .then(data => setTaxis([])) // Zakładamy, że resetujemy taksówki
+      .then(data => setTaxis([]))
       .catch(error => console.error("Error restarting simulation:", error));
   };
 
@@ -61,6 +66,7 @@ function App() {
 
   return (
     <div className={`App ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
+      <Map center={mapCenter} zoom={12} />
       <TaxiList taxis={taxis} />
       <ClientList clients={clients} />
       <div className={`control-panel ${sidebarOpen ? '' : 'sidebar-closed'}`}>

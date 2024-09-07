@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
+	"time"
 )
 
 type Taxi struct {
@@ -22,66 +23,108 @@ type Client struct {
 	ID       int    `json:"id"`
 	Name     string `json:"name"`
 	Location LatLng `json:"location"`
+	Waiting  bool   `json:"waiting"`
 }
 
 var (
-	taxis   []Taxi
-	clients []Client
-	mutex   sync.Mutex
+	taxis       []Taxi
+	clients     []Client
+	mutex       sync.Mutex
+	simulation  bool
+	ticker      *time.Ticker
+	stopChannel chan bool
 )
 
 func main() {
 	http.HandleFunc("/api/simulation/start", startSimulationHandler)
-	http.HandleFunc("/api/simulation/restart", restartSimulationHandler) // Dodano endpoint do restartu
+	http.HandleFunc("/api/simulation/stop", stopSimulationHandler)
+	http.HandleFunc("/api/simulation/restart", restartSimulationHandler)
 	http.HandleFunc("/api/taxis", taxisHandler)
 	http.HandleFunc("/api/clients", clientsHandler)
-	http.HandleFunc("/api/settings", settingsHandler) // Dodano endpoint do ustawień
+	http.HandleFunc("/api/settings", settingsHandler)
 	http.ListenAndServe(":8080", nil)
 }
 
 func startSimulationHandler(w http.ResponseWriter, r *http.Request) {
-	// Logika symulacji
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	for i := range taxis {
-		// Symulacja przemieszczania taksówek do najbliższego klienta
-		closestClient := findClosestClient(taxis[i].Location)
-		if closestClient != nil {
-			taxis[i].Location = closestClient.Location
-			taxis[i].Available = false
-		}
+	if simulation {
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Simulation is already running"})
+		return
 	}
 
-	json.NewEncoder(w).Encode(taxis)
+	simulation = true
+	stopChannel = make(chan bool)
+	ticker = time.NewTicker(2 * time.Second)
+
+	go runSimulation()
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "Simulation started"})
+}
+
+func runSimulation() {
+	for {
+		select {
+		case <-stopChannel:
+			return
+		case <-ticker.C:
+			mutex.Lock()
+			for i := range taxis {
+				if taxis[i].Available {
+					closestClient := findClosestClient(taxis[i].Location)
+					if closestClient != nil {
+						taxis[i].Location = closestClient.Location
+						taxis[i].Available = false
+						closestClient.Waiting = false
+					}
+				}
+			}
+			mutex.Unlock()
+		}
+	}
+}
+
+func stopSimulationHandler(w http.ResponseWriter, r *http.Request) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if !simulation {
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Simulation is not running"})
+		return
+	}
+
+	simulation = false
+	ticker.Stop()
+	close(stopChannel)
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "Simulation stopped"})
 }
 
 func restartSimulationHandler(w http.ResponseWriter, r *http.Request) {
-	// Restart symulacji
+	stopSimulationHandler(w, r)
+
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	// Przywrócenie taksówek i klientów do stanu początkowego
 	taxis = nil
 	clients = nil
 
-	// Można dodać dodatkową logikę restartowania, np. ponowne inicjalizowanie danych
-
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "Simulation restarted"})
 }
 
 func settingsHandler(w http.ResponseWriter, r *http.Request) {
-	// Logika ustawień
 	if r.Method == http.MethodPost {
-		// Możliwość aktualizacji ustawień
 		var settings map[string]interface{}
 		json.NewDecoder(r.Body).Decode(&settings)
-		// Przykładowa logika dla ustawień
-		// np. Zmiana parametrów symulacji na podstawie settings
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(settings)
 	} else if r.Method == http.MethodGet {
-		// Przykładowe ustawienia
 		settings := map[string]interface{}{
 			"simulationSpeed": 1.0,
 			"maxTaxis":        10,
@@ -95,7 +138,7 @@ func findClosestClient(taxiLocation LatLng) *Client {
 	minDistance := 999999999.0
 	for i, client := range clients {
 		distance := getDistance(taxiLocation, client.Location)
-		if distance < minDistance {
+		if distance < minDistance && client.Waiting {
 			closestClient = &clients[i]
 			minDistance = distance
 		}
@@ -104,8 +147,8 @@ func findClosestClient(taxiLocation LatLng) *Client {
 }
 
 func getDistance(loc1, loc2 LatLng) float64 {
-	// Funkcja licząca odległość pomiędzy dwoma punktami
-	return 0 // obliczenia odległości
+	// To do: obliczenia odległości
+	return 0 // tymczasowy placeholder
 }
 
 func taxisHandler(w http.ResponseWriter, r *http.Request) {
@@ -139,6 +182,7 @@ func clientsHandler(w http.ResponseWriter, r *http.Request) {
 	} else if r.Method == http.MethodPost {
 		var newClient Client
 		json.NewDecoder(r.Body).Decode(&newClient)
+		newClient.Waiting = true
 		clients = append(clients, newClient)
 		w.WriteHeader(http.StatusCreated)
 	}
