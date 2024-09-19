@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"sync"
 	"time"
@@ -12,6 +13,7 @@ type Taxi struct {
 	Name      string `json:"name"`
 	Location  LatLng `json:"location"`
 	Available bool   `json:"available"`
+	Busy      bool   `json:"busy"`
 }
 
 type LatLng struct {
@@ -24,6 +26,7 @@ type Client struct {
 	Name     string `json:"name"`
 	Location LatLng `json:"location"`
 	Waiting  bool   `json:"waiting"`
+	Busy     bool   `json:"busy"`
 }
 
 var (
@@ -73,12 +76,14 @@ func runSimulation() {
 		case <-ticker.C:
 			mutex.Lock()
 			for i := range taxis {
-				if taxis[i].Available {
+				if taxis[i].Available && !taxis[i].Busy {
 					closestClient := findClosestClient(taxis[i].Location)
 					if closestClient != nil {
 						taxis[i].Location = closestClient.Location
 						taxis[i].Available = false
+						taxis[i].Busy = true
 						closestClient.Waiting = false
+						closestClient.Busy = true
 					}
 				}
 			}
@@ -138,7 +143,7 @@ func findClosestClient(taxiLocation LatLng) *Client {
 	minDistance := 999999999.0
 	for i, client := range clients {
 		distance := getDistance(taxiLocation, client.Location)
-		if distance < minDistance && client.Waiting {
+		if distance < minDistance && client.Waiting && !client.Busy {
 			closestClient = &clients[i]
 			minDistance = distance
 		}
@@ -147,8 +152,19 @@ func findClosestClient(taxiLocation LatLng) *Client {
 }
 
 func getDistance(loc1, loc2 LatLng) float64 {
-	// To do: obliczenia odległości
-	return 0 // tymczasowy placeholder
+	const R = 6371 // Radius of the Earth in km
+	lat1 := loc1.Lat * math.Pi / 180
+	lat2 := loc2.Lat * math.Pi / 180
+	deltaLat := (loc2.Lat - loc1.Lat) * math.Pi / 180
+	deltaLng := (loc2.Lng - loc1.Lng) * math.Pi / 180
+
+	a := math.Sin(deltaLat/2)*math.Sin(deltaLat/2) +
+		math.Cos(lat1)*math.Cos(lat2)*
+			math.Sin(deltaLng/2)*math.Sin(deltaLng/2)
+
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+
+	return R * c // Distance in km
 }
 
 func taxisHandler(w http.ResponseWriter, r *http.Request) {
@@ -160,12 +176,23 @@ func taxisHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodGet {
-		json.NewEncoder(w).Encode(taxis)
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(taxis); err != nil {
+			http.Error(w, "Failed to encode JSON", http.StatusInternalServerError)
+		}
 	} else if r.Method == http.MethodPost {
 		var newTaxi Taxi
-		json.NewDecoder(r.Body).Decode(&newTaxi)
+		if err := json.NewDecoder(r.Body).Decode(&newTaxi); err != nil {
+			http.Error(w, "Invalid request payload", http.StatusBadRequest)
+			return
+		}
+		newTaxi.Busy = false
 		taxis = append(taxis, newTaxi)
 		w.WriteHeader(http.StatusCreated)
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(newTaxi); err != nil {
+			http.Error(w, "Failed to encode JSON", http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -178,12 +205,19 @@ func clientsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodGet {
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(clients)
 	} else if r.Method == http.MethodPost {
 		var newClient Client
-		json.NewDecoder(r.Body).Decode(&newClient)
+		if err := json.NewDecoder(r.Body).Decode(&newClient); err != nil {
+			http.Error(w, "Invalid request payload", http.StatusBadRequest)
+			return
+		}
 		newClient.Waiting = true
+		newClient.Busy = false
 		clients = append(clients, newClient)
 		w.WriteHeader(http.StatusCreated)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(newClient)
 	}
 }

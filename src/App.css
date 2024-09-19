@@ -3,6 +3,12 @@
   flex-direction: row;
 }
 
+
+#map {
+  width: calc(100% - 90px);
+  height: 100vh;
+}
+
 /* Ustawienia dla paska bocznego */
 .control-panel {
   position: fixed;
@@ -60,10 +66,6 @@
   right: 0; /* Przesunięcie przycisku do krawędzi, gdy pasek jest zamknięty */
 }
 
-#map {
-  width: calc(100% - 300px);
-  height: 100vh;
-}
 
 @media (max-width: 768px) {
   .App {
@@ -83,5 +85,3 @@
     height: 400px;
   }
 }
-
-
