@@ -21,7 +21,6 @@ function TaxiList({ taxis }: TaxiListProps) {
 
   return (
     <div>
-      <h2>Taxi List</h2>
       <ul>
         {taxis.map(taxi => (
           <li key={taxi.id}>

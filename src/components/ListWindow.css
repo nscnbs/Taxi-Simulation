@@ -1,0 +1,52 @@
+/* Stylizacja okna z listą */
+.list-window {
+    position: fixed;
+    right: 100px; /* Dopasuj do potrzeb */
+    top: 20px;
+    width: 300px; /* Szerokość okna */
+    max-height: 80vh; /* Maksymalna wysokość okna */
+    background-color: rgba(0, 0, 0, 0.6); /* Przezroczyste czarne tło */
+    border: 1px solid #ccc; /* Delikatna ramka */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Cień */
+    z-index: 1000; /* Wyższy priorytet nad innymi elementami */
+    padding: 10px; /* Wewnętrzne odstępy */
+    border-radius: 5px; /* Zaokrąglone rogi */
+    transition: all 0.3s ease; /* Animacja przy otwieraniu/zamykaniu */
+    overflow-y: auto; /* Umożliwienie przewijania w pionie */
+    color: white;
+    cursor: move;
+  }
+  
+  /* Stylizacja nagłówków w oknie z listą */
+  .list-window h2 {
+    margin: 10px 0; /* Odstępy dla nagłówków */
+    font-size: 18px; /* Rozmiar czcionki nagłówków */
+    color: #fff; /* Kolor nagłówków na biało */
+  }
+  
+  /* Stylizacja elementów listy */
+  .list-window ul {
+    list-style: none; /* Usunięcie punktów listy */
+    padding: 0; /* Usunięcie wewnętrznego marginesu */
+  }
+  
+  .list-window li {
+    padding: 8px; /* Wewnętrzne odstępy dla elementów listy */
+    color: #fff; /* Kolor tekstu elementów listy */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2); /* Delikatna ramka dolna */
+  }
+  
+  /* Przycisk zamykania okna */
+  .list-window button {
+    background-color: #ff4d4d; /* Czerwony przycisk */
+    color: white; /* Kolor tekstu */
+    border: none; /* Bez ramki */
+    padding: 8px 12px; /* Wewnętrzne odstępy */
+    border-radius: 5px; /* Zaokrąglone rogi */
+    cursor: pointer; /* Kursor jako wskaźnik */
+    transition: background-color 0.3s ease; /* Animacja zmiany koloru */
+  }
+  
+  .list-window button:hover {
+    background-color: #ff1a1a; /* Ciemniejszy kolor przy najechaniu */
+  }

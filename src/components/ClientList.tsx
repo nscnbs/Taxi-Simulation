@@ -20,7 +20,6 @@ function ClientList({ clients }: ClientListProps) {
 
   return (
     <div>
-      <h2>Client List</h2>
       <ul>
         {clients.map(client => (
           <li key={client.id}>
