@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import ControlPanel from './components/ControlPanel';
 import ListWindow from './components/ListWindow';
 import SettingsWindow from './components/SettingsWindow';
@@ -6,39 +6,6 @@ import Map from './components/Map';
 import './App.css';
 import { Taxi, Client, LatLng } from './types';
 
-// Funkcja do obliczania odległości między dwoma punktami
-const getDistance = (loc1: LatLng, loc2: LatLng) => {
-  const R = 6371; // Promień Ziemi w km
-  const lat1 = (loc1.lat * Math.PI) / 180;
-  const lat2 = (loc2.lat * Math.PI) / 180;
-  const deltaLat = ((loc2.lat - loc1.lat) * Math.PI) / 180;
-  const deltaLng = ((loc2.lng - loc1.lng) * Math.PI) / 180;
-
-  const a =
-    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return R * c; // Odległość w km
-};
-
-// Znalezienie najbliższego klienta
-const findClosestClient = (taxiLocation: LatLng, clients: Client[]): Client | null => {
-  let closestClient: Client | null = null;
-  let minDistance = Infinity;
-
-  clients.forEach((client) => {
-    if (client.available && !client.busy) {
-      const distance = getDistance(taxiLocation, client.location);
-      if (distance < minDistance) {
-        closestClient = client;
-        minDistance = distance;
-      }
-    }
-  });
-
-  return closestClient;
-};
 
 function App() {
   const [taxis, setTaxis] = useState<Taxi[]>([]);
@@ -46,52 +13,197 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isSimulationActive, setIsSimulationActive] = useState(false);
   const [showList, setShowList] = useState(false);
-  const [speed, setSpeed] = useState<number>(2000);
+  const [speed, setSpeed] = useState<number>(10);
+  const [points, setPoints] = useState<number>(100);
   const [showSettings, setShowSettings] = useState(false);
-  
+  const [route, setRoute] = useState<google.maps.DirectionsRoute | null>(null);
+  const [interpolatedRoute, setInterpolatedRoute] = useState<google.maps.LatLng[]>([]);
+
   const mapCenter = { lat: 51.1079, lng: 17.0385 }; // Wrocław
 
-  // Funkcja do symulacji, uruchamiana co kilka sekund
+  const getDistance = async (origin: LatLng, destination: LatLng) => {
+    const directionsService = new google.maps.DirectionsService();
+    const request: google.maps.DirectionsRequest = {
+      origin: new google.maps.LatLng(origin.lat, origin.lng),
+      destination: new google.maps.LatLng(destination.lat, destination.lng),
+      travelMode: google.maps.TravelMode.DRIVING,
+      drivingOptions: {
+        departureTime: new Date(),
+        trafficModel: google.maps.TrafficModel.PESSIMISTIC
+      }
+    };
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    return new Promise<number>((resolve, reject) => {
+      directionsService.route(request, (result, status) => {
+        if (status === 'OK' && result && result.routes.length > 0) {
+          const route = result.routes[0];
+          const distance = route.legs[0].distance?.value || 0;
+          resolve(distance);
+        } else {
+          reject('Unable to calculate route');
+        }
+      });
+    });
+  };
 
-    if (isSimulationActive) {
-      interval = setInterval(() => {
-        setTaxis((prevTaxis) => {
-          return prevTaxis.map((taxi) => {
-            if (taxi.available && !taxi.busy) {
-              const closestClient = findClosestClient(taxi.location, clients);
-              if (closestClient) {
-                taxi.route = [closestClient.location];
-                taxi.available = false;
-                taxi.waiting = true;
-                taxi.busy = false;
-                closestClient.available = false;
-                closestClient.waiting = true;
-                closestClient.busy = false;
-                return { ...taxi, location: closestClient.location };
-              }
-            } else if (taxi.route && taxi.route.length > 0) {
-              taxi.location = taxi.route[0];
-              taxi.route.shift();
-              if (taxi.route.length === 0) {
-                taxi.available = true;
-                taxi.busy = false;
-              }
-            }
-            return taxi;
-          });
-        });
-      }, speed); // Używamy prędkości
-    } else if (interval) {
-      clearInterval(interval);
+  const findClosestTaxi = useCallback(async (clientLocation: LatLng, availableTaxis: Taxi[]): Promise<Taxi | null> => {
+    let closestTaxi: Taxi | null = null;
+    let minDistance = Infinity;
+  
+    for (const taxi of availableTaxis) {
+      try {
+        const distance = await getDistance(taxi.location, clientLocation);
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestTaxi = taxi;
+        }
+      } catch (error) {
+        console.error('Error calculating distance:', error);
+      }
+    }
+    return closestTaxi;
+  }, []);
+
+  const calculateRoute = useCallback(async (taxi: Taxi, client: Client): Promise<google.maps.DirectionsRoute> => {
+    const directionsService = new google.maps.DirectionsService();
+    const request: google.maps.DirectionsRequest = {
+      origin: new google.maps.LatLng(taxi.location.lat, taxi.location.lng),
+      destination: new google.maps.LatLng(client.location.lat, client.location.lng),
+      travelMode: google.maps.TravelMode.DRIVING,
+      optimizeWaypoints: true, // Dodane, by trasa była jak najbardziej optymalna
+    };
+
+    return new Promise((resolve, reject) => {
+      directionsService.route(request, (result, status) => {
+        if (status === 'OK' && result) {
+          console.log(result); // dodaj to
+          resolve(result.routes[0]);
+        } else {
+          reject('Could not calculate route');
+        }
+      });
+    });
+  }, []);
+
+  const drawRoute = (route: google.maps.DirectionsRoute) => {
+    console.log('Route drawn:', route);
+    setRoute(route);
+  };
+
+  const clearRouteSegment = (segmentIndex: number) => {
+    setInterpolatedRoute((prevRoute) => {
+        return prevRoute.slice(segmentIndex); // Aktualizujemy trasę, wycinając segmenty do określonego indeksu
+    });
+  };
+
+  const interpolatePoints = (start: google.maps.LatLng, end: google.maps.LatLng, numPoints: number): google.maps.LatLng[] => {
+    const interpolatedPoints: google.maps.LatLng[] = [];
+    const latStep = (end.lat() - start.lat()) / numPoints;
+    const lngStep = (end.lng() - start.lng()) / numPoints;
+
+    for (let i = 0; i <= numPoints; i++) {
+      const lat = start.lat() + latStep * i;
+      const lng = start.lng() + lngStep * i;
+      interpolatedPoints.push(new google.maps.LatLng(lat, lng));
     }
 
-    return () => {
-      if (interval) clearInterval(interval);
+    return interpolatedPoints;
+  };
+
+  const moveTaxiAlongRoute = useCallback((taxi: Taxi, client: Client, route: google.maps.DirectionsRoute, speed: number) => {
+    let step = 0;
+    const steps = route.legs[0].steps;
+    
+    const fullInterpolatedRoute = steps.flatMap((step) => interpolatePoints(step.start_location, step.end_location, points));
+    setInterpolatedRoute(fullInterpolatedRoute);
+  
+    const moveInterval = setInterval(() => {
+      if (step >= fullInterpolatedRoute.length) {
+        clearInterval(moveInterval);
+        setInterpolatedRoute([]); // Очищаем маршрут при завершении
+  
+        updateTaxiAndClientStatus(taxi.id, client.id, false, false, true);
+        return;
+      }
+  
+      const newPosition = fullInterpolatedRoute[step];
+      setTaxis((prevTaxis) =>
+        prevTaxis.map((t) => (t.id === taxi.id ? { ...t, location: { lat: newPosition.lat(), lng: newPosition.lng() } } : t))
+      );
+  
+      clearRouteSegment(step);
+  
+      step++;
+    }, speed);
+  }, [setTaxis, setClients, speed, clearRouteSegment]);
+
+
+  const updateTaxiAndClientStatus = (taxiId: number, clientId: number, available: boolean, waiting: boolean, busy: boolean) => {
+    if(available){
+      setTaxis(prevTaxis =>
+        prevTaxis.map(t =>
+          t.id === taxiId ? { ...t, available: true, waiting: false, busy: false } : t
+        )
+      );
+    
+      setClients(prevClients =>
+        prevClients.map(c =>
+          c.id === clientId ? { ...c, available: true, waiting: false, busy: false } : c
+        )
+      );
+    }
+    else if(waiting){
+      setTaxis(prevTaxis =>
+        prevTaxis.map(t =>
+          t.id === taxiId ? { ...t, available: false, waiting: true, busy: false } : t
+        )
+      );
+    
+      setClients(prevClients =>
+        prevClients.map(c =>
+          c.id === clientId ? { ...c, available: false, waiting: true, busy: false } : c
+        )
+      );
+    }
+    else if(busy){
+        setTaxis(prevTaxis =>
+          prevTaxis.map(t =>
+            t.id === taxiId ? { ...t, available: false, waiting: false, busy: true } : t
+          )
+        );
+      
+        setClients(prevClients =>
+          prevClients.map(c =>
+            c.id === clientId ? { ...c, available: false, waiting: false, busy: true } : c
+          )
+        );
+      }
     };
-  }, [isSimulationActive, clients, speed]);
+  
+
+  useEffect(() => {
+    const simulate = async () => {
+      if (!isSimulationActive) return;
+  
+      const availableClients = clients.filter(client => client.available);
+      const availableTaxis = taxis.filter(taxi => taxi.available && !taxi.busy && !taxi.waiting);
+  
+      for (const client of availableClients) {
+        const closestTaxi = await findClosestTaxi(client.location, availableTaxis);
+        if (closestTaxi) {
+          const route = await calculateRoute(closestTaxi, client);
+          drawRoute(route);
+          moveTaxiAlongRoute(closestTaxi, client, route, speed);
+  
+          updateTaxiAndClientStatus(closestTaxi.id, client.id, false, true, false);
+        }
+      }
+    };
+  
+    const interval = setInterval(simulate, speed);
+    return () => clearInterval(interval);
+  }, [isSimulationActive, clients, taxis, findClosestTaxi, calculateRoute, moveTaxiAlongRoute, speed]);
+  
 
 
   const handleAddTaxi = () => {
@@ -175,6 +287,10 @@ function App() {
             clients={clients} 
             isSimulationActive={isSimulationActive}
             speed={speed} 
+            onRouteDrawn={route => drawRoute(route)}
+            route={route}
+            interpolatedRoute={interpolatedRoute}
+            clearRouteSegment={clearRouteSegment}
         />
         <ListWindow show={showList} onClose={() => setShowList(false)} taxis={taxis} clients={clients} /> {/* Użyj ListWindow */}
         <SettingsWindow show={showSettings} onClose={() => setShowSettings(false)} onSpeedChange={handleSpeedChange} />
