@@ -51,11 +51,11 @@ const SettingsWindow: React.FC<SettingsWindowProps> = ({ show, onClose, onSpeedC
       onMouseDown={handleMouseDown}
     >
       <h2>Speed</h2>
-      <button onClick={() => onSpeedChange(1000)}>x1</button>
-      <button onClick={() => onSpeedChange(500)}>x2</button>
-      <button onClick={() => onSpeedChange(100)}>x5</button>
-      <button onClick={() => onSpeedChange(50)}>x10</button>
-      <button onClick={() => onSpeedChange(25)}>x20</button>
+      <button onClick={() => onSpeedChange(100)}>x1</button>
+      <button onClick={() => onSpeedChange(50)}>x2</button>
+      <button onClick={() => onSpeedChange(20)}>x5</button>
+      <button onClick={() => onSpeedChange(10)}>x10</button>
+      <button onClick={() => onSpeedChange(5)}>x20</button>
       <button onClick={onClose}>Close</button>
     </div>
   );

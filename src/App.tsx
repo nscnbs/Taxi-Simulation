@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ControlPanel from './components/ControlPanel';
-import ListWindow from './components/ListWindow'; // Importuj komponent ListWindow
-import SettingsWindow from './components/SettingsWindow'; // Importuj komponent ListWindow
+import ListWindow from './components/ListWindow';
+import SettingsWindow from './components/SettingsWindow';
 import Map from './components/Map';
 import './App.css';
 import { Taxi, Client, LatLng } from './types';
@@ -28,7 +28,7 @@ const findClosestClient = (taxiLocation: LatLng, clients: Client[]): Client | nu
   let minDistance = Infinity;
 
   clients.forEach((client) => {
-    if (client.waiting && !client.busy) {
+    if (client.available && !client.busy) {
       const distance = getDistance(taxiLocation, client.location);
       if (distance < minDistance) {
         closestClient = client;
@@ -46,8 +46,8 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isSimulationActive, setIsSimulationActive] = useState(false);
   const [showList, setShowList] = useState(false);
-  const [speed, setSpeed] = useState<number>(2000); // Domyślna prędkość
-  const [showSettings, setShowSettings] = useState(false); // Stan do kontrolowania wyświetlania okna ustawień
+  const [speed, setSpeed] = useState<number>(2000);
+  const [showSettings, setShowSettings] = useState(false);
   
   const mapCenter = { lat: 51.1079, lng: 17.0385 }; // Wrocław
 
@@ -83,7 +83,7 @@ function App() {
             return taxi;
           });
         });
-      }, speed); // Używamy prędkości z ustawień
+      }, speed); // Używamy prędkości
     } else if (interval) {
       clearInterval(interval);
     }
@@ -170,7 +170,7 @@ function App() {
     <div className={`App ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
         <Map 
             center={mapCenter} 
-            zoom={14} 
+            zoom={13} 
             taxis={taxis} 
             clients={clients} 
             isSimulationActive={isSimulationActive}

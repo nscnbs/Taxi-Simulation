@@ -24,13 +24,12 @@ const ListWindow: React.FC<ListWindowProps> = ({ show, onClose, taxis, clients }
     if (isDragging) {
       setPosition({ top: e.clientY - offset.y, left: e.clientX - offset.x });
     }
-  }, [isDragging, offset]); // Dodaj offset jako zależność
+  }, [isDragging, offset]);
 
   const handleMouseUp = () => {
     setIsDragging(false);
   };
 
-  // Dodaj nasłuchiwacze zdarzeń, aby obsłużyć przeciąganie
   useEffect(() => {
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
@@ -39,7 +38,7 @@ const ListWindow: React.FC<ListWindowProps> = ({ show, onClose, taxis, clients }
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [handleMouseMove]); // Użyj handleMouseMove jako zależności
+  }, [handleMouseMove]);
 
   if (!show) return null;
 

@@ -17,6 +17,7 @@ const Map: React.FC<MapProps> = ({ center, zoom, taxis, clients, isSimulationAct
   const [directionsRenderer, setDirectionsRenderer] = useState<google.maps.DirectionsRenderer | null>(null);
   const [taxiRoutes, setTaxiRoutes] = useState<google.maps.Polyline[]>([]);
   const [taxiMarkers, setTaxiMarkers] = useState<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const [clientMarkers, setClientMarkers] = useState<google.maps.marker.AdvancedMarkerElement[]>([]);
 
 
   useEffect(() => {
