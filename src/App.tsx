@@ -14,12 +14,12 @@ function App() {
   const [isSimulationActive, setIsSimulationActive] = useState(false);
   const [showList, setShowList] = useState(false);
   const [speed, setSpeed] = useState<number>(10);
-  const [points, setPoints] = useState<number>(100);
+  const [interPoints, setInterPoints] = useState<number>(100);
   const [showSettings, setShowSettings] = useState(false);
   const [route, setRoute] = useState<google.maps.DirectionsRoute | null>(null);
   const [interpolatedRoute, setInterpolatedRoute] = useState<google.maps.LatLng[]>([]);
 
-  const mapCenter = { lat: 51.1079, lng: 17.0385 }; // Wrocław
+  const mapCenter = { lat: 51.1079, lng: 17.0385 }; // Wrocław Centrum
 
   const getDistance = async (origin: LatLng, destination: LatLng) => {
     const directionsService = new google.maps.DirectionsService();
@@ -70,7 +70,7 @@ function App() {
       origin: new google.maps.LatLng(taxi.location.lat, taxi.location.lng),
       destination: new google.maps.LatLng(client.location.lat, client.location.lng),
       travelMode: google.maps.TravelMode.DRIVING,
-      optimizeWaypoints: true, // Dodane, by trasa była jak najbardziej optymalna
+      optimizeWaypoints: true,
     };
 
     return new Promise((resolve, reject) => {
@@ -90,11 +90,9 @@ function App() {
     setRoute(route);
   };
 
-  const clearRouteSegment = (segmentIndex: number) => {
-    setInterpolatedRoute((prevRoute) => {
-        return prevRoute.slice(segmentIndex); // Aktualizujemy trasę, wycinając segmenty do określonego indeksu
-    });
-  };
+  const handleClearRouteSegment = (segmentIndex: number) => {
+    setInterpolatedRoute((prevRoute) => prevRoute.slice(segmentIndex));
+};
 
   const interpolatePoints = (start: google.maps.LatLng, end: google.maps.LatLng, numPoints: number): google.maps.LatLng[] => {
     const interpolatedPoints: google.maps.LatLng[] = [];
@@ -114,28 +112,32 @@ function App() {
     let step = 0;
     const steps = route.legs[0].steps;
     
-    const fullInterpolatedRoute = steps.flatMap((step) => interpolatePoints(step.start_location, step.end_location, points));
+    const fullInterpolatedRoute = steps.flatMap((step) => interpolatePoints(step.start_location, step.end_location, interPoints));
     setInterpolatedRoute(fullInterpolatedRoute);
-  
+
     const moveInterval = setInterval(() => {
-      if (step >= fullInterpolatedRoute.length) {
-        clearInterval(moveInterval);
-        setInterpolatedRoute([]); // Очищаем маршрут при завершении
-  
-        updateTaxiAndClientStatus(taxi.id, client.id, false, false, true);
-        return;
-      }
-  
-      const newPosition = fullInterpolatedRoute[step];
-      setTaxis((prevTaxis) =>
-        prevTaxis.map((t) => (t.id === taxi.id ? { ...t, location: { lat: newPosition.lat(), lng: newPosition.lng() } } : t))
-      );
-  
-      clearRouteSegment(step);
-  
-      step++;
+        if (step >= fullInterpolatedRoute.length) {
+            clearInterval(moveInterval);
+            setInterpolatedRoute([]); // Очистка пути после завершения
+            updateTaxiAndClientStatus(taxi.id, client.id, false, false, true);
+            return;
+        }
+
+        taxi.location = {
+          lat: fullInterpolatedRoute[step].lat(),
+          lng: fullInterpolatedRoute[step].lng()
+        };
+        setTaxis((prevTaxis) =>
+          prevTaxis.map((t) => (t.id === taxi.id ? { ...t, location: taxi.location } : t))
+       );
+
+        //handleClearRouteSegment(step);
+
+        step += Math.ceil(speed / 5);
     }, speed);
-  }, [setTaxis, setClients, speed, clearRouteSegment]);
+    return () => clearInterval(moveInterval);
+}, [interPoints, handleClearRouteSegment, setTaxis, setClients, speed]);
+
 
 
   const updateTaxiAndClientStatus = (taxiId: number, clientId: number, available: boolean, waiting: boolean, busy: boolean) => {
@@ -203,7 +205,6 @@ function App() {
     const interval = setInterval(simulate, speed);
     return () => clearInterval(interval);
   }, [isSimulationActive, clients, taxis, findClosestTaxi, calculateRoute, moveTaxiAlongRoute, speed]);
-  
 
 
   const handleAddTaxi = () => {
@@ -244,7 +245,7 @@ function App() {
   };
 
   const handleRestartSimulation = () => {
-    setTaxis([]); // Czyścimy listę taksówek po restarcie
+    setTaxis([]);
     setIsSimulationActive(false);
   };
 
@@ -257,7 +258,7 @@ function App() {
         setIsSimulationActive(false);
     }
     else{
-        handleStartSimulation(); // Wznów symulację
+        handleStartSimulation();
     }
   };
   
@@ -290,7 +291,7 @@ function App() {
             onRouteDrawn={route => drawRoute(route)}
             route={route}
             interpolatedRoute={interpolatedRoute}
-            clearRouteSegment={clearRouteSegment}
+            clearRouteSegment={handleClearRouteSegment}
         />
         <ListWindow show={showList} onClose={() => setShowList(false)} taxis={taxis} clients={clients} /> {/* Użyj ListWindow */}
         <SettingsWindow show={showSettings} onClose={() => setShowSettings(false)} onSpeedChange={handleSpeedChange} />

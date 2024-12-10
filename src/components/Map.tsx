@@ -15,41 +15,27 @@ interface MapProps {
   clearRouteSegment: (segmentIndex: number) => void;
 }
 
-const Map: React.FC<MapProps> = ({ center, zoom, taxis, clients, isSimulationActive, speed, onRouteDrawn, route, interpolatedRoute}) => {
+const Map: React.FC<MapProps> = ({ center, zoom, taxis, clients, isSimulationActive, speed, onRouteDrawn, route, interpolatedRoute, clearRouteSegment}) => {
   const mapRef = useRef<google.maps.Map | null>(null);
   const taxiMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const clientMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
-  const [taxiRoutes, setTaxiRoutes] = useState<google.maps.Polyline[]>([]);
   const [currentPolyline, setCurrentPolyline] = useState<google.maps.Polyline | null>(null);
 
 
   const clearRoutes = useCallback(() => {
-    if (taxiRoutes.length > 0) {
-      taxiRoutes.forEach(route => route.setMap(null));
-      setTaxiRoutes([]);
+    if (currentPolyline) {
+        currentPolyline.setMap(null);
+        setCurrentPolyline(null);
     }
-  }, [taxiRoutes]);
+}, [currentPolyline]);
 
+const handleClearRouteSegment = useCallback((segmentIndex: number) => {
+    if (segmentIndex < 0 || segmentIndex >= interpolatedRoute.length - 1 || !currentPolyline) return;
 
-  const clearRouteSegment = useCallback((segmentIndex: number) => {
-    // Проверка на допустимый индекс сегмента
-    if (segmentIndex < 0 || segmentIndex >= interpolatedRoute.length - 1) return;
-  
-    // Сохраняем только оставшуюся часть маршрута
-    const remainingPath = interpolatedRoute.slice(segmentIndex + 1);
-    const updatedRoutePath = new google.maps.Polyline({
-      path: remainingPath,
-      geodesic: true,
-      strokeColor: '#FB6964',
-      strokeOpacity: 1.0,
-      strokeWeight: 2,
-    });
-  
-    // Удаляем только пройденный сегмент, а не весь маршрут
-    taxiRoutes.forEach(route => route.setMap(null));
-    updatedRoutePath.setMap(mapRef.current!);
-    setTaxiRoutes([updatedRoutePath]);
-  }, [interpolatedRoute, taxiRoutes]);
+    const remainingPath = interpolatedRoute.slice(segmentIndex);
+    currentPolyline?.setPath(remainingPath);
+}, [interpolatedRoute, currentPolyline]);
+
   
 
   const updateMarkers = useCallback(() => {
@@ -136,20 +122,20 @@ const Map: React.FC<MapProps> = ({ center, zoom, taxis, clients, isSimulationAct
   const drawRoute = useCallback(() => {
     if (!interpolatedRoute || interpolatedRoute.length === 0) return;
 
-    // Czyszczenie wcześniejszych tras
-    clearRoutes();
+    clearRoutes(); // Очистка предыдущих маршрутов, если нужно
 
     const routePath = new google.maps.Polyline({
-      path: interpolatedRoute,
-      geodesic: true,
-      strokeColor: '#FF0000',
-      strokeOpacity: 1.0,
-      strokeWeight: 2,
+        path: interpolatedRoute,
+        geodesic: true,
+        strokeColor: '#FF0000',
+        strokeOpacity: 1.0,
+        strokeWeight: 2,
     });
 
     routePath.setMap(mapRef.current!);
-    setTaxiRoutes(prev => [...prev, routePath]);
-  }, [interpolatedRoute, clearRoutes]);
+    setCurrentPolyline(routePath); // Обновляем текущее значение полилинии
+}, [interpolatedRoute, clearRoutes]);
+
 
   useEffect(() => {
     const initializeMap = async () => {
@@ -172,7 +158,6 @@ const Map: React.FC<MapProps> = ({ center, zoom, taxis, clients, isSimulationAct
         }
 
         updateMarkers();
-        drawRoute();
 
       } catch (error) {
         console.error('Google Maps API failed to load:', error);
@@ -180,7 +165,13 @@ const Map: React.FC<MapProps> = ({ center, zoom, taxis, clients, isSimulationAct
     };
 
     initializeMap();
-  }, [center, zoom, taxis, clients, updateMarkers, drawRoute]);
+  }, [center, zoom, updateMarkers]);
+
+  useEffect(() => {
+    if (route) {
+        drawRoute();
+    }
+  }, [route, drawRoute]);
 
   return <div id="map" style={{ height: '100vh', width: '100%' }} />;
 };
