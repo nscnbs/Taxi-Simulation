@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ControlPanel from './components/ControlPanel';
 import ListWindow from './components/ListWindow';
 import SettingsWindow from './components/SettingsWindow';
-import Map from './components/Map';
+import Map, { MapHandle } from './components/Map';
 import './App.css';
-import { Taxi, Client, LatLng } from './types';
+import { Taxi, Client, LatLng, Status } from './types';
+import { findClosestTaxi, calculateRoute, getDistance } from './services/routeUtils';
 
 
 function App() {
@@ -21,78 +22,7 @@ function App() {
 
   const mapCenter = { lat: 51.1079, lng: 17.0385 }; // Wrocław Centrum
 
-  const getDistance = async (origin: LatLng, destination: LatLng) => {
-    const directionsService = new google.maps.DirectionsService();
-    const request: google.maps.DirectionsRequest = {
-      origin: new google.maps.LatLng(origin.lat, origin.lng),
-      destination: new google.maps.LatLng(destination.lat, destination.lng),
-      travelMode: google.maps.TravelMode.DRIVING,
-      drivingOptions: {
-        departureTime: new Date(),
-        trafficModel: google.maps.TrafficModel.PESSIMISTIC
-      }
-    };
-
-    return new Promise<number>((resolve, reject) => {
-      directionsService.route(request, (result, status) => {
-        if (status === 'OK' && result && result.routes.length > 0) {
-          const route = result.routes[0];
-          const distance = route.legs[0].distance?.value || 0;
-          resolve(distance);
-        } else {
-          reject('Unable to calculate route');
-        }
-      });
-    });
-  };
-
-  const findClosestTaxi = useCallback(async (clientLocation: LatLng, availableTaxis: Taxi[]): Promise<Taxi | null> => {
-    let closestTaxi: Taxi | null = null;
-    let minDistance = Infinity;
-  
-    for (const taxi of availableTaxis) {
-      try {
-        const distance = await getDistance(taxi.location, clientLocation);
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestTaxi = taxi;
-        }
-      } catch (error) {
-        console.error('Error calculating distance:', error);
-      }
-    }
-    return closestTaxi;
-  }, []);
-
-  const calculateRoute = useCallback(async (taxi: Taxi, client: Client): Promise<google.maps.DirectionsRoute> => {
-    const directionsService = new google.maps.DirectionsService();
-    const request: google.maps.DirectionsRequest = {
-      origin: new google.maps.LatLng(taxi.location.lat, taxi.location.lng),
-      destination: new google.maps.LatLng(client.location.lat, client.location.lng),
-      travelMode: google.maps.TravelMode.DRIVING,
-      optimizeWaypoints: true,
-    };
-
-    return new Promise((resolve, reject) => {
-      directionsService.route(request, (result, status) => {
-        if (status === 'OK' && result) {
-          console.log(result); // dodaj to
-          resolve(result.routes[0]);
-        } else {
-          reject('Could not calculate route');
-        }
-      });
-    });
-  }, []);
-
-  const drawRoute = (route: google.maps.DirectionsRoute) => {
-    console.log('Route drawn:', route);
-    setRoute(route);
-  };
-
-  const handleClearRouteSegment = (segmentIndex: number) => {
-    setInterpolatedRoute((prevRoute) => prevRoute.slice(segmentIndex));
-};
+  const mapRef = useRef<MapHandle>(null);
 
   const interpolatePoints = (start: google.maps.LatLng, end: google.maps.LatLng, numPoints: number): google.maps.LatLng[] => {
     const interpolatedPoints: google.maps.LatLng[] = [];
@@ -108,104 +38,138 @@ function App() {
     return interpolatedPoints;
   };
 
-  const moveTaxiAlongRoute = useCallback((taxi: Taxi, client: Client, route: google.maps.DirectionsRoute, speed: number) => {
-    let step = 0;
-    const steps = route.legs[0].steps;
-    
-    const fullInterpolatedRoute = steps.flatMap((step) => interpolatePoints(step.start_location, step.end_location, interPoints));
-    setInterpolatedRoute(fullInterpolatedRoute);
-
-    const moveInterval = setInterval(() => {
-        if (step >= fullInterpolatedRoute.length) {
-            clearInterval(moveInterval);
-            setInterpolatedRoute([]); // Очистка пути после завершения
-            updateTaxiAndClientStatus(taxi.id, client.id, false, false, true);
-            return;
+  const moveTaxiAlongRoute = useCallback(
+    async (taxi: Taxi, target: { location: LatLng }, route: google.maps.DirectionsRoute, onFinish: () => void) => {
+      if (taxi.isLocked) return;
+  
+      taxi.isLocked = true;
+      updateStatus<Taxi>(taxis, setTaxis, taxi.id, Status.Busy);
+  
+      const steps = route.legs[0].steps;
+      const fullInterpolatedRoute = steps.flatMap((step) =>
+        interpolatePoints(step.start_location, step.end_location, interPoints)
+      );
+  
+      setInterpolatedRoute(fullInterpolatedRoute);
+  
+      let stepIndex = 0;
+      const moveInterval = setInterval(() => {
+        if (stepIndex >= fullInterpolatedRoute.length) {
+          clearInterval(moveInterval);
+          taxi.isLocked = false;
+          console.log("Koniec trasy");
+          onFinish(); // Wywołujemy funkcję po zakończeniu
+          return;
         }
+  
+        const nextPoint = fullInterpolatedRoute[stepIndex];
+        taxi.location = { lat: nextPoint.lat(), lng: nextPoint.lng() };
+        setTaxis((prev) =>
+          prev.map((t) => (t.id === taxi.id ? { ...t, location: taxi.location } : t))
+        );
 
-        taxi.location = {
-          lat: fullInterpolatedRoute[step].lat(),
-          lng: fullInterpolatedRoute[step].lng()
+        mapRef.current?.handleClearRouteSegment(stepIndex);
+
+        stepIndex += Math.ceil(speed / 5);
+      }, speed);
+  
+      return () => clearInterval(moveInterval);
+    },
+    [interPoints, speed, taxis, setTaxis]
+  );
+
+
+
+  const updateStatus = <T extends Taxi | Client>(
+    entities: T[],
+    setEntities: React.Dispatch<React.SetStateAction<T[]>>,
+    entityId: number,
+    newStatus: Status
+  ) => {
+    setEntities((prevEntities) =>
+      prevEntities.map((entity) =>
+        entity.id === entityId ? { ...entity, status: newStatus } : entity
+      )
+    );
+  };
+
+
+  const assignTaxiToClient = useCallback(async (client: Client) => {
+    const availableTaxis = taxis.filter((taxi) => taxi.status === Status.Available);
+    if (availableTaxis.length === 0) return;
+
+    const closestTaxi = await findClosestTaxi(client.location, availableTaxis);
+    if (!closestTaxi) return;
+
+
+    updateStatus<Client>(clients, setClients, client.id, Status.Busy);
+    updateStatus<Taxi>(taxis, setTaxis, closestTaxi.id, Status.Busy);
+
+
+    const routeToClient = await calculateRoute(closestTaxi, client);
+
+    const steps = routeToClient.legs[0].steps;
+    const interpolatedToClient = steps.flatMap((step) =>
+      interpolatePoints(step.start_location, step.end_location, interPoints)
+    );
+
+    setInterpolatedRoute(interpolatedToClient);
+    mapRef.current?.drawRoute(interpolatedToClient);
+
+    // Ruch taksówki do klienta
+    moveTaxiAlongRoute(closestTaxi, client, routeToClient, async () => {
+      // Po dotarciu do klienta
+      const destination = {
+        lat: mapCenter.lat + (Math.random() - 0.5) * 0.08,
+        lng: mapCenter.lng + (Math.random() - 0.5) * 0.08,
+      };
+
+      if (mapRef.current) {
+        const destinationMarker = mapRef.current.addDestinationMarker(
+          new google.maps.LatLng(destination.lat, destination.lng)
+        );
+        console.log('Marker punktu docelowego dodany:', destinationMarker);
+
+        // Pobieramy trasę do punktu docelowego
+        const temporaryClient: Client = {
+          id: -1, // Tymczasowe ID
+          name: 'Destination',
+          location: destination,
+          status: Status.Available,
         };
-        setTaxis((prevTaxis) =>
-          prevTaxis.map((t) => (t.id === taxi.id ? { ...t, location: taxi.location } : t))
-       );
-
-        //handleClearRouteSegment(step);
-
-        step += Math.ceil(speed / 5);
-    }, speed);
-    return () => clearInterval(moveInterval);
-}, [interPoints, handleClearRouteSegment, setTaxis, setClients, speed]);
-
-
-
-  const updateTaxiAndClientStatus = (taxiId: number, clientId: number, available: boolean, waiting: boolean, busy: boolean) => {
-    if(available){
-      setTaxis(prevTaxis =>
-        prevTaxis.map(t =>
-          t.id === taxiId ? { ...t, available: true, waiting: false, busy: false } : t
-        )
-      );
-    
-      setClients(prevClients =>
-        prevClients.map(c =>
-          c.id === clientId ? { ...c, available: true, waiting: false, busy: false } : c
-        )
-      );
-    }
-    else if(waiting){
-      setTaxis(prevTaxis =>
-        prevTaxis.map(t =>
-          t.id === taxiId ? { ...t, available: false, waiting: true, busy: false } : t
-        )
-      );
-    
-      setClients(prevClients =>
-        prevClients.map(c =>
-          c.id === clientId ? { ...c, available: false, waiting: true, busy: false } : c
-        )
-      );
-    }
-    else if(busy){
-        setTaxis(prevTaxis =>
-          prevTaxis.map(t =>
-            t.id === taxiId ? { ...t, available: false, waiting: false, busy: true } : t
-          )
+        const routeToDestination = await calculateRoute(closestTaxi, temporaryClient);
+        const steps = routeToClient.legs[0].steps;
+        const interpolatedToDestination = steps.flatMap((step) =>
+          interpolatePoints(step.start_location, step.end_location, interPoints)
         );
       
-        setClients(prevClients =>
-          prevClients.map(c =>
-            c.id === clientId ? { ...c, available: false, waiting: false, busy: true } : c
-          )
-        );
+        setInterpolatedRoute(interpolatedToDestination);
+        mapRef.current?.drawRoute(interpolatedToDestination);
+      
+
+        moveTaxiAlongRoute(closestTaxi, { location: destination }, routeToDestination, () => {
+          mapRef.current?.removeDestinationMarker(destinationMarker);
+          closestTaxi.rides += 1;
+          console.log(closestTaxi.rides);
+          updateStatus<Client>(clients, setClients, client.id, Status.Hibernate);
+          updateStatus<Taxi>(taxis, setTaxis, closestTaxi.id, Status.Available);
+        });
       }
-    };
-  
+    });
+  }, [taxis, clients, calculateRoute, moveTaxiAlongRoute]);
 
   useEffect(() => {
-    const simulate = async () => {
-      if (!isSimulationActive) return;
-  
-      const availableClients = clients.filter(client => client.available);
-      const availableTaxis = taxis.filter(taxi => taxi.available && !taxi.busy && !taxi.waiting);
-  
-      for (const client of availableClients) {
-        const closestTaxi = await findClosestTaxi(client.location, availableTaxis);
-        if (closestTaxi) {
-          const route = await calculateRoute(closestTaxi, client);
-          drawRoute(route);
-          moveTaxiAlongRoute(closestTaxi, client, route, speed);
-  
-          updateTaxiAndClientStatus(closestTaxi.id, client.id, false, true, false);
-        }
-      }
-    };
-  
-    const interval = setInterval(simulate, speed);
-    return () => clearInterval(interval);
-  }, [isSimulationActive, clients, taxis, findClosestTaxi, calculateRoute, moveTaxiAlongRoute, speed]);
-
+    if (isSimulationActive) {
+      const interval = setInterval(() => {
+        clients.forEach((client) => {
+          if (client.status === Status.Available) {
+            assignTaxiToClient(client);
+          }
+        });
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [isSimulationActive, clients, assignTaxiToClient]);
 
   const handleAddTaxi = () => {
     const randomLocation = {
@@ -216,28 +180,34 @@ function App() {
       id: taxis.length + 1,
       name: `Taxi ${taxis.length + 1}`,
       location: randomLocation,
-      available: true,
-      waiting: false,
-      busy: false,
+      status: Status.Available,
       route: [],
+      isLocked: false,
+      rides: 0,
     };
     setTaxis((prevTaxis) => [...prevTaxis, newTaxi]);
   };
 
+  const handleClientLifecycle = useCallback((client: Client) => {
+    const randomTime = Math.random() * 9 + 1; // 1-10 sekund
+    setTimeout(() => {
+      updateStatus<Client>(clients, setClients, client.id, Status.Available);
+    }, randomTime * 1000);
+  }, [clients]);
+
   const handleAddClient = () => {
     const randomLocation = {
-      lat: 51.1079 + (Math.random() - 0.5) * 0.08,
-      lng: 17.0385 + (Math.random() - 0.5) * 0.08,
+      lat: mapCenter.lat + (Math.random() - 0.5) * 0.08,
+      lng: mapCenter.lng + (Math.random() - 0.5) * 0.08,
     };
     const newClient: Client = {
       id: clients.length + 1,
       name: `Client ${clients.length + 1}`,
       location: randomLocation,
-      available: true,
-      waiting: false,
-      busy: false,
+      status: Status.Hibernate,
     };
     setClients((prevClients) => [...prevClients, newClient]);
+    handleClientLifecycle(newClient);
   };
 
   const handleStartSimulation = () => {
@@ -282,16 +252,15 @@ function App() {
   return (
     <div className={`App ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
         <Map 
+            ref={mapRef}
             center={mapCenter} 
             zoom={13} 
             taxis={taxis} 
             clients={clients} 
             isSimulationActive={isSimulationActive}
             speed={speed} 
-            onRouteDrawn={route => drawRoute(route)}
             route={route}
             interpolatedRoute={interpolatedRoute}
-            clearRouteSegment={handleClearRouteSegment}
         />
         <ListWindow show={showList} onClose={() => setShowList(false)} taxis={taxis} clients={clients} /> {/* Użyj ListWindow */}
         <SettingsWindow show={showSettings} onClose={() => setShowSettings(false)} onSpeedChange={handleSpeedChange} />

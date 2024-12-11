@@ -1,6 +1,6 @@
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { loadGoogleMapsAPI } from '../services/googleMapsAPI';
-import { Taxi, Client } from '../types';
+import { Taxi, Client, Status } from '../types';
 
 interface MapProps {
   center: { lat: number; lng: number };
@@ -9,18 +9,35 @@ interface MapProps {
   clients: Client[];
   isSimulationActive: boolean;
   speed: number;
-  onRouteDrawn?: (route: google.maps.DirectionsRoute) => void;
   route?: google.maps.DirectionsRoute | null;
   interpolatedRoute: google.maps.LatLng[]; 
-  clearRouteSegment: (segmentIndex: number) => void;
 }
 
-const Map: React.FC<MapProps> = ({ center, zoom, taxis, clients, isSimulationActive, speed, onRouteDrawn, route, interpolatedRoute, clearRouteSegment}) => {
+
+export interface MapHandle {
+  addDestinationMarker: (position: google.maps.LatLng ) => google.maps.marker.AdvancedMarkerElement;
+  removeDestinationMarker: (marker: google.maps.marker.AdvancedMarkerElement) => void;
+  drawRoute: (route: google.maps.LatLng[]) => void; // Funkcja rysująca trasę
+  handleClearRouteSegment: (segmentIndex: number) => void; // Funkcja czyszcząca segment trasy
+}
+
+
+const Map = forwardRef<MapHandle, MapProps>(({
+  center,
+  zoom,
+  taxis,
+  clients,
+  isSimulationActive,
+  speed,
+  route,
+  interpolatedRoute
+}, ref) => {
+
   const mapRef = useRef<google.maps.Map | null>(null);
   const taxiMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const clientMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const destinationMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]); 
   const [currentPolyline, setCurrentPolyline] = useState<google.maps.Polyline | null>(null);
-
 
   const clearRoutes = useCallback(() => {
     if (currentPolyline) {
@@ -30,10 +47,10 @@ const Map: React.FC<MapProps> = ({ center, zoom, taxis, clients, isSimulationAct
 }, [currentPolyline]);
 
 const handleClearRouteSegment = useCallback((segmentIndex: number) => {
-    if (segmentIndex < 0 || segmentIndex >= interpolatedRoute.length - 1 || !currentPolyline) return;
+  if (segmentIndex < 0 || segmentIndex >= interpolatedRoute.length - 1 || !currentPolyline) return;
 
-    const remainingPath = interpolatedRoute.slice(segmentIndex);
-    currentPolyline?.setPath(remainingPath);
+  const remainingPath = interpolatedRoute.slice(segmentIndex);
+  currentPolyline?.setPath(remainingPath);
 }, [interpolatedRoute, currentPolyline]);
 
   
@@ -43,7 +60,10 @@ const handleClearRouteSegment = useCallback((segmentIndex: number) => {
   
     taxis.forEach((taxi, index) => {
       let marker = taxiMarkersRef.current[index];
-      const backgroundColor = taxi.available ? '#47AE73' : taxi.busy ? '#FB6964' : '#FFD514';
+      const backgroundColor =
+      taxi.status === Status.Available ? '#47AE73' :
+      taxi.status === Status.Busy ? '#FB6964' :
+      '#FFD514';
   
       if (marker) {
         marker.position = taxi.location;
@@ -82,7 +102,11 @@ const handleClearRouteSegment = useCallback((segmentIndex: number) => {
     // Aktualizacja lub tworzenie markerów klientów
     clients.forEach((client, index) => {
       let marker = clientMarkersRef.current[index];
-      const backgroundColor = client.available ? '#47AE73' : client.busy ? '#FB6964' : '#FFD514';
+      const backgroundColor =
+      client.status === Status.Available ? '#47AE73' :
+      client.status === Status.Busy ? '#FB6964' :
+      client.status === Status.Hibernate ? '#B0B0B0' :
+      '#FFD514';
   
       if (marker) {
         marker.position = client.location;
@@ -117,24 +141,50 @@ const handleClearRouteSegment = useCallback((segmentIndex: number) => {
       }
     });
   }, [taxis, clients]);
-  
 
-  const drawRoute = useCallback(() => {
-    if (!interpolatedRoute || interpolatedRoute.length === 0) return;
+  const addDestinationMarker = useCallback((position: google.maps.LatLng ) => {
+    const beachFlagImg = document.createElement('img');
+    beachFlagImg.src = 'https://developers.google.com/maps/documentation/javascript/examples/full/images/beachflag.png';
 
-    clearRoutes(); // Очистка предыдущих маршрутов, если нужно
-
-    const routePath = new google.maps.Polyline({
-        path: interpolatedRoute,
-        geodesic: true,
-        strokeColor: '#FF0000',
-        strokeOpacity: 1.0,
-        strokeWeight: 2,
+    const marker = new google.maps.marker.AdvancedMarkerElement({
+      map: mapRef.current!,
+      position,
+      content: beachFlagImg,
+      title: "Destination",
     });
+  
+    destinationMarkersRef.current.push(marker); // Dodajemy marker do referencji
+    return marker;
+  }, []);
+  
+  const removeDestinationMarker = useCallback((marker: google.maps.marker.AdvancedMarkerElement) => {
+    marker.map = null; // Usuwamy marker z mapy
+    destinationMarkersRef.current = destinationMarkersRef.current.filter((m) => m !== marker); // Usuwamy z referencji
+  }, []);
+  
+  useImperativeHandle(ref, () => ({
+    addDestinationMarker,
+    removeDestinationMarker,
+    drawRoute,
+    handleClearRouteSegment,
+  }));
 
-    routePath.setMap(mapRef.current!);
-    setCurrentPolyline(routePath); // Обновляем текущее значение полилинии
-}, [interpolatedRoute, clearRoutes]);
+const drawRoute = useCallback((route: google.maps.LatLng[]) => {
+  if (!route || route.length === 0) return;
+
+  clearRoutes(); // Czyści poprzednie trasy, jeśli istnieją
+
+  const routePath = new google.maps.Polyline({
+    path: route,
+    geodesic: true,
+    strokeColor: '#FF0000',
+    strokeOpacity: 1.0,
+    strokeWeight: 2,
+  });
+
+  routePath.setMap(mapRef.current!);
+  setCurrentPolyline(routePath); // Ustawiamy nową trasę
+}, [clearRoutes]);
 
 
   useEffect(() => {
@@ -167,13 +217,7 @@ const handleClearRouteSegment = useCallback((segmentIndex: number) => {
     initializeMap();
   }, [center, zoom, updateMarkers]);
 
-  useEffect(() => {
-    if (route) {
-        drawRoute();
-    }
-  }, [route, drawRoute]);
-
   return <div id="map" style={{ height: '100vh', width: '100%' }} />;
-};
+});
 
 export default Map;

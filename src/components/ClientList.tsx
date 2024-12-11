@@ -1,13 +1,5 @@
 import React from 'react';
-
-interface Client {
-  id: number;
-  name: string;
-  location: {
-    lat: number;
-    lng: number;
-  };
-}
+import { Taxi, Client, LatLng, Status } from '../types';
 
 interface ClientListProps {
   clients: Client[];
@@ -23,7 +15,7 @@ function ClientList({ clients }: ClientListProps) {
       <ul>
         {clients.map(client => (
           <li key={client.id}>
-            {client.name} - Location: ({client.location.lat}, {client.location.lng})
+            {client.name} - { Status.Available ? 'Available' : Status.Busy ? 'Unavailable' : 'Hibernate'} 
           </li>
         ))}
       </ul>
