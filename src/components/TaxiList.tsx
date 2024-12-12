@@ -15,7 +15,7 @@ function TaxiList({ taxis }: TaxiListProps) {
       <ul>
         {taxis.map(taxi => (
           <li key={taxi.id}>
-            {taxi.name} - { Status.Available ? 'Available' : Status.Busy ? 'Unavailable' : 'Hibernate'} - Rides: {taxi.rides} 
+            {taxi.name} - ID: {taxi.id} - { Status.Available ? 'Available' : Status.Busy ? 'Unavailable' : 'Hibernate'} - Rides: {taxi.rides} 
           </li>
         ))}
       </ul>

@@ -15,7 +15,7 @@ function ClientList({ clients }: ClientListProps) {
       <ul>
         {clients.map(client => (
           <li key={client.id}>
-            {client.name} - { Status.Available ? 'Available' : Status.Busy ? 'Unavailable' : 'Hibernate'} 
+            {client.name} - ID: {client.id} - { Status.Available ? 'Available' : Status.Busy ? 'Unavailable' : 'Hibernate'} 
           </li>
         ))}
       </ul>

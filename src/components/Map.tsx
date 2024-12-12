@@ -7,9 +7,6 @@ interface MapProps {
   zoom: number;
   taxis: Taxi[];
   clients: Client[];
-  isSimulationActive: boolean;
-  speed: number;
-  route?: google.maps.DirectionsRoute | null;
   interpolatedRoute: google.maps.LatLng[]; 
 }
 
@@ -17,8 +14,8 @@ interface MapProps {
 export interface MapHandle {
   addDestinationMarker: (position: google.maps.LatLng ) => google.maps.marker.AdvancedMarkerElement;
   removeDestinationMarker: (marker: google.maps.marker.AdvancedMarkerElement) => void;
-  drawRoute: (route: google.maps.LatLng[]) => void; // Funkcja rysująca trasę
-  handleClearRouteSegment: (segmentIndex: number) => void; // Funkcja czyszcząca segment trasy
+  drawRoute: (route: google.maps.LatLng[]) => void;
+  clearRouteSegment: (segmentIndex: number) => void;
 }
 
 
@@ -27,9 +24,6 @@ const Map = forwardRef<MapHandle, MapProps>(({
   zoom,
   taxis,
   clients,
-  isSimulationActive,
-  speed,
-  route,
   interpolatedRoute
 }, ref) => {
 
@@ -38,22 +32,6 @@ const Map = forwardRef<MapHandle, MapProps>(({
   const clientMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const destinationMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]); 
   const [currentPolyline, setCurrentPolyline] = useState<google.maps.Polyline | null>(null);
-
-  const clearRoutes = useCallback(() => {
-    if (currentPolyline) {
-        currentPolyline.setMap(null);
-        setCurrentPolyline(null);
-    }
-}, [currentPolyline]);
-
-const handleClearRouteSegment = useCallback((segmentIndex: number) => {
-  if (segmentIndex < 0 || segmentIndex >= interpolatedRoute.length - 1 || !currentPolyline) return;
-
-  const remainingPath = interpolatedRoute.slice(segmentIndex);
-  currentPolyline?.setPath(remainingPath);
-}, [interpolatedRoute, currentPolyline]);
-
-  
 
   const updateMarkers = useCallback(() => {
     const { AdvancedMarkerElement, PinElement } = (window as any).google.maps.marker;
@@ -153,38 +131,45 @@ const handleClearRouteSegment = useCallback((segmentIndex: number) => {
       title: "Destination",
     });
   
-    destinationMarkersRef.current.push(marker); // Dodajemy marker do referencji
+    destinationMarkersRef.current.push(marker);
     return marker;
   }, []);
   
   const removeDestinationMarker = useCallback((marker: google.maps.marker.AdvancedMarkerElement) => {
-    marker.map = null; // Usuwamy marker z mapy
-    destinationMarkersRef.current = destinationMarkersRef.current.filter((m) => m !== marker); // Usuwamy z referencji
+    marker.map = null;
+    destinationMarkersRef.current = destinationMarkersRef.current.filter((m) => m !== marker);
   }, []);
   
   useImperativeHandle(ref, () => ({
     addDestinationMarker,
     removeDestinationMarker,
     drawRoute,
-    handleClearRouteSegment,
+    clearRouteSegment,
   }));
 
-const drawRoute = useCallback((route: google.maps.LatLng[]) => {
-  if (!route || route.length === 0) return;
+  
+  const clearRouteSegment = useCallback((segmentIndex: number) => {
+    if (segmentIndex < 0 || segmentIndex >= interpolatedRoute.length - 1 || !currentPolyline) return;
 
-  clearRoutes(); // Czyści poprzednie trasy, jeśli istnieją
+    const remainingPath = interpolatedRoute.slice(segmentIndex);
+    currentPolyline?.setPath(remainingPath);
+  }, [interpolatedRoute, currentPolyline]);
 
-  const routePath = new google.maps.Polyline({
-    path: route,
-    geodesic: true,
-    strokeColor: '#FF0000',
-    strokeOpacity: 1.0,
-    strokeWeight: 2,
-  });
+  
+  const drawRoute = useCallback((route: google.maps.LatLng[]) => {
+    if (!route || route.length === 0) return;
 
-  routePath.setMap(mapRef.current!);
-  setCurrentPolyline(routePath); // Ustawiamy nową trasę
-}, [clearRoutes]);
+    const routePath = new google.maps.Polyline({
+      path: route,
+      geodesic: true,
+      strokeColor: '#FF0000',
+      strokeOpacity: 1.0,
+      strokeWeight: 2,
+    });
+
+    routePath.setMap(mapRef.current!);
+    setCurrentPolyline(routePath);
+  }, []);
 
 
   useEffect(() => {
