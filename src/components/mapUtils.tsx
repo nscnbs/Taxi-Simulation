@@ -7,31 +7,37 @@ interface MapProps {
   zoom: number;
   taxis: Taxi[];
   clients: Client[];
-  interpolatedRoute: google.maps.LatLng[]; 
+  taxiRoutes: Map<number, google.maps.LatLng[]>;
+  setTaxiRoutes: React.Dispatch<React.SetStateAction<Map<number, google.maps.LatLng[]>>>;
+  taxiPolylines: Map<number, google.maps.Polyline>;
+  setTaxiPolylines: React.Dispatch<React.SetStateAction<Map<number, google.maps.Polyline>>>;
 }
 
 
 export interface MapHandle {
   addDestinationMarker: (position: google.maps.LatLng ) => google.maps.marker.AdvancedMarkerElement;
   removeDestinationMarker: (marker: google.maps.marker.AdvancedMarkerElement) => void;
-  drawRoute: (route: google.maps.LatLng[]) => void;
-  clearRouteSegment: (segmentIndex: number) => void;
+  drawRoute: (taxiId: number, route: google.maps.LatLng[]) => void;
+  clearRouteSegment: (taxiId: number, segmentIndex: number) => void;
+  clearRoute: (taxiId: number) => void;
 }
 
 
-const Map = forwardRef<MapHandle, MapProps>(({
+const mapUtils = forwardRef<MapHandle, MapProps>(({
   center,
   zoom,
   taxis,
   clients,
-  interpolatedRoute
+  taxiRoutes,
+  taxiPolylines,
+  setTaxiRoutes,
+  setTaxiPolylines,
 }, ref) => {
 
   const mapRef = useRef<google.maps.Map | null>(null);
   const taxiMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const clientMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
-  const destinationMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]); 
-  const [currentPolyline, setCurrentPolyline] = useState<google.maps.Polyline | null>(null);
+  const destinationMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
 
   const updateMarkers = useCallback(() => {
     const { AdvancedMarkerElement, PinElement } = (window as any).google.maps.marker;
@@ -117,6 +123,7 @@ const Map = forwardRef<MapHandle, MapProps>(({
         });
         clientMarkersRef.current.push(marker);
       }
+      
     });
   }, [taxis, clients]);
 
@@ -139,37 +146,72 @@ const Map = forwardRef<MapHandle, MapProps>(({
     marker.map = null;
     destinationMarkersRef.current = destinationMarkersRef.current.filter((m) => m !== marker);
   }, []);
+
+  const removeClientMarker = useCallback((marker: google.maps.marker.AdvancedMarkerElement) => {
+    marker.map = null; // Usuń marker z mapy
+    clientMarkersRef.current = clientMarkersRef.current.filter((m) => m !== marker); // Usuń z referencji
+  }, []);
+
+  const clearRouteSegment = useCallback(
+    (taxiId: number, segmentIndex: number) => {
+      const route = taxiRoutes.get(taxiId);
+      const polyline = taxiPolylines.get(taxiId);
   
+      if (!route || !polyline || segmentIndex < 0 || segmentIndex >= route.length - 1) return;
+  
+      const remainingPath = route.slice(segmentIndex);
+      polyline.setPath(remainingPath);
+    },
+    [taxiRoutes, taxiPolylines]
+  );
+ 
+  const clearRoute = useCallback((taxiId: number) => {
+    setTaxiPolylines((prevPolylines) => {
+      const updatedPolylines = new Map(prevPolylines);
+      const polyline = updatedPolylines.get(taxiId);
+
+      if (polyline) {
+        polyline.setMap(null);
+        updatedPolylines.delete(taxiId);
+      }
+
+      return updatedPolylines;
+    });
+
+    setTaxiRoutes((prevRoutes) => {
+      const updatedRoutes = new Map(prevRoutes);
+      updatedRoutes.delete(taxiId);
+      return updatedRoutes;
+    });
+  }, [setTaxiPolylines, setTaxiRoutes]);
+  
+  const drawRoute = useCallback(
+    (taxiId: number, route: google.maps.LatLng[]) => {
+      if (!route || route.length === 0) return;
+  
+      const routePath = new google.maps.Polyline({
+        path: route,
+        geodesic: true,
+        strokeColor: "#FF0000",
+        strokeOpacity: 1.0,
+        strokeWeight: 2,
+      });
+  
+      routePath.setMap(mapRef.current!);
+  
+      setTaxiPolylines((prev) => new Map(prev).set(taxiId, routePath));
+    },
+    []
+  );
+
+    
   useImperativeHandle(ref, () => ({
     addDestinationMarker,
     removeDestinationMarker,
     drawRoute,
     clearRouteSegment,
+    clearRoute,
   }));
-
-  
-  const clearRouteSegment = useCallback((segmentIndex: number) => {
-    if (segmentIndex < 0 || segmentIndex >= interpolatedRoute.length - 1 || !currentPolyline) return;
-
-    const remainingPath = interpolatedRoute.slice(segmentIndex);
-    currentPolyline?.setPath(remainingPath);
-  }, [interpolatedRoute, currentPolyline]);
-
-  
-  const drawRoute = useCallback((route: google.maps.LatLng[]) => {
-    if (!route || route.length === 0) return;
-
-    const routePath = new google.maps.Polyline({
-      path: route,
-      geodesic: true,
-      strokeColor: '#FF0000',
-      strokeOpacity: 1.0,
-      strokeWeight: 2,
-    });
-
-    routePath.setMap(mapRef.current!);
-    setCurrentPolyline(routePath);
-  }, []);
 
 
   useEffect(() => {
@@ -205,4 +247,4 @@ const Map = forwardRef<MapHandle, MapProps>(({
   return <div id="map" style={{ height: '100vh', width: '100%' }} />;
 });
 
-export default Map;
+export default mapUtils;

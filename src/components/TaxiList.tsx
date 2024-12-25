@@ -1,5 +1,5 @@
 import React from 'react';
-import { Taxi, Client, LatLng, Status } from '../types';
+import { Taxi } from '../types';
 
 interface TaxiListProps {
   taxis: Taxi[];
@@ -13,9 +13,9 @@ function TaxiList({ taxis }: TaxiListProps) {
   return (
     <div>
       <ul>
-        {taxis.map(taxi => (
+        {taxis.map((taxi) => (
           <li key={taxi.id}>
-            {taxi.name} - ID: {taxi.id} - { Status.Available ? 'Available' : Status.Busy ? 'Unavailable' : 'Hibernate'} - Rides: {taxi.rides} 
+            {taxi.name} - ID: {taxi.id} - Status: {taxi.status} - Rides: {taxi.rides}
           </li>
         ))}
       </ul>

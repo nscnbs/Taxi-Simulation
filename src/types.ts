@@ -2,7 +2,8 @@ export enum Status {
   Available = 'available',
   Waiting = 'waiting',
   Busy = 'busy',
-  Hibernate = 'hibernate'
+  Hibernate = 'hibernate',
+  Finished = 'finished'
 }
 
 export type LatLng = {

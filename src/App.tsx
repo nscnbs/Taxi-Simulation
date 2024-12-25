@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ControlPanel from './components/ControlPanel';
 import ListWindow from './components/ListWindow';
 import SettingsWindow from './components/SettingsWindow';
-import Map, { MapHandle } from './components/Map';
+import MapComponent, { MapHandle } from './components/mapUtils';
 import './App.css';
 import { Taxi, Client, LatLng, Status } from './types';
 import { findClosestTaxi, calculateRoute, generateInterpolatedRoute } from './services/routeUtils';
@@ -17,7 +17,12 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [speed, setSpeed] = useState<number>(10);
   const [interPoints, setInterPoints] = useState<number>(100);
-  const [interpolatedRoute, setInterpolatedRoute] = useState<google.maps.LatLng[]>([]);
+  const [taxiRoutes, setTaxiRoutes] = useState<Map<number, google.maps.LatLng[]>>(new Map());
+  const [taxiPolylines, setTaxiPolylines] = useState<Map<number, google.maps.Polyline>>(new Map());
+
+
+  const lockedTaxis = new Set<number>();
+  const lockedClients = new Set<number>();
 
   const mapRef = useRef<MapHandle>(null);
   const mapCenter = { lat: 51.1079, lng: 17.0385 }; // Wrocław Centrum
@@ -26,12 +31,16 @@ function App() {
     async (taxi: Taxi, target: { location: LatLng }, route: google.maps.DirectionsRoute, onFinish: () => void) => {
       const fullInterpolatedRoute = generateInterpolatedRoute(route, interPoints);
   
-      setInterpolatedRoute(fullInterpolatedRoute);
-  
+      // Zapisujemy interpolowane trasy w mapie z kluczem jako `taxi.id`
+      setTaxiRoutes((prev) => new Map(prev).set(taxi.id, fullInterpolatedRoute));
+      
+      mapRef.current?.drawRoute(taxi.id, fullInterpolatedRoute);
+
       let stepIndex = 0;
       const moveInterval = setInterval(() => {
         if (stepIndex >= fullInterpolatedRoute.length) {
           clearInterval(moveInterval);
+          mapRef.current?.clearRoute(taxi.id);
           onFinish(); // Wywołujemy funkcję po zakończeniu
           return;
         }
@@ -42,7 +51,8 @@ function App() {
           prev.map((t) => (t.id === taxi.id ? { ...t, location: taxi.location } : t))
         );
 
-        mapRef.current?.clearRouteSegment(stepIndex);
+        
+        mapRef.current?.clearRouteSegment(taxi.id, stepIndex);
 
         stepIndex += Math.ceil(speed / 5);
       }, speed);
@@ -65,54 +75,78 @@ function App() {
       )
     );
   };
-
-
+  
+  
   const assignTaxiToClient = useCallback(
     async (taxi: Taxi, client: Client) => {
+      if (lockedTaxis.has(taxi.id) || lockedClients.has(client.id)) return; // Sprawdzamy blokadę
+  
+      lockedTaxis.add(taxi.id);
+      lockedClients.add(client.id);
+  
       updateStatus<Client>(clients, setClients, client.id, Status.Busy);
       updateStatus<Taxi>(taxis, setTaxis, taxi.id, Status.Busy);
+  
+      try {
+        const routeToClient = await calculateRoute(taxi, client);
+  
+        await new Promise<void>((resolve) =>
+          moveTaxiAlongRoute(taxi, client, routeToClient, async () => {
+            // Po dotarciu do klienta
+            const destination = {
+              lat: mapCenter.lat + (Math.random() - 0.5) * 0.08,
+              lng: mapCenter.lng + (Math.random() - 0.5) * 0.08,
+            };
 
-      const routeToClient = await calculateRoute(taxi, client);
+            if (mapRef.current) {
+              const destinationMarker = mapRef.current.addDestinationMarker(
+                new google.maps.LatLng(destination.lat, destination.lng)
+              );
+  
+            const temporaryClient: Client = {
+              id: -1,
+              name: 'Destination',
+              location: destination,
+              status: Status.Available,
+              isLocked: true,
+            };
+  
+            const routeToDestination = await calculateRoute(taxi, temporaryClient);
 
-      const interpolatedToClient = generateInterpolatedRoute(routeToClient, interPoints);
-      setInterpolatedRoute(interpolatedToClient);
-      mapRef.current?.drawRoute(interpolatedToClient);
-      
-      moveTaxiAlongRoute(taxi, client, routeToClient, async () => {
-        const destination = {
-          lat: mapCenter.lat + (Math.random() - 0.5) * 0.08,
-          lng: mapCenter.lng + (Math.random() - 0.5) * 0.08,
-        };
+            updateStatus<Client>(clients, setClients, client.id, Status.Finished);
+  
+            await new Promise<void>((resolveDestination) =>
+              moveTaxiAlongRoute(taxi, { location: destination }, routeToDestination, () => {
+                mapRef.current?.removeDestinationMarker(destinationMarker);
+                updateStatus<Taxi>(taxis, setTaxis, taxi.id, Status.Available);
 
-        if (mapRef.current) {
-          const destinationMarker = mapRef.current.addDestinationMarker(
-            new google.maps.LatLng(destination.lat, destination.lng)
-          );
-
-          const temporaryClient: Client = {
-            id: -1,
-            name: 'Destination',
-            location: destination,
-            status: Status.Available,
-            isLocked: true,
-          };
-          const routeToDestination = await calculateRoute(taxi, temporaryClient);
-
-          const interpolatedToDestination = generateInterpolatedRoute(routeToDestination, interPoints);
-          setInterpolatedRoute(interpolatedToDestination);
-          mapRef.current?.drawRoute(interpolatedToDestination);
-
-          moveTaxiAlongRoute(taxi, { location: destination }, routeToDestination, () => {
-            mapRef.current?.removeDestinationMarker(destinationMarker);
-
-            updateStatus<Client>(clients, setClients, client.id, Status.Hibernate);
-            updateStatus<Taxi>(taxis, setTaxis, taxi.id, Status.Available);
-          });
-        }
-      });
+                setTaxis((prev) =>
+                  prev.map((t) =>
+                    t.id === taxi.id ? { ...t, rides: t.rides + 1 } : t
+                  )
+                );                
+  
+                lockedTaxis.delete(taxi.id);
+                lockedClients.delete(client.id);
+                resolveDestination();
+              }) 
+            );
+            resolve();
+          }
+          })
+        );
+      } catch (error) {
+        console.error("Error during taxi-client assignment:", error);
+        updateStatus<Client>(clients, setClients, client.id, Status.Available);
+        updateStatus<Taxi>(taxis, setTaxis, taxi.id, Status.Available);
+  
+        lockedTaxis.delete(taxi.id); // Odblokowujemy w przypadku błędu
+        lockedClients.delete(client.id);
+      }
     },
     [clients, taxis, moveTaxiAlongRoute]
   );
+  
 
   useEffect(() => {
     if (isSimulationActive) {
@@ -123,19 +157,19 @@ function App() {
         const availableTaxis = taxis.filter(
           (taxi) => taxi.status === Status.Available && !taxi.isLocked
         );
-
+  
         for (const client of availableClients) {
           const closestTaxi = await findClosestTaxi(client.location, availableTaxis);
           if (closestTaxi) {
-            assignTaxiToClient(closestTaxi, client);
-            break; // Obsługujemy jedną parę na iterację
+            assignTaxiToClient(closestTaxi, client); // Wywołanie asynchroniczne
           }
         }
       }, 1000);
-
+  
       return () => clearInterval(interval);
     }
   }, [isSimulationActive, clients, taxis, assignTaxiToClient]);
+
 
   const generateLocation = {
     lat: mapCenter.lat + (Math.random() - 0.5) * 0.08,
@@ -213,13 +247,16 @@ function App() {
 
   return (
     <div className={`App ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
-        <Map 
+        <MapComponent 
             ref={mapRef}
             center={mapCenter} 
             zoom={13} 
             taxis={taxis} 
             clients={clients} 
-            interpolatedRoute={interpolatedRoute}
+            taxiRoutes={taxiRoutes}
+            setTaxiRoutes={setTaxiRoutes}
+            taxiPolylines={taxiPolylines}
+            setTaxiPolylines={setTaxiPolylines}
         />
         <ListWindow show={showList} onClose={() => setShowList(false)} taxis={taxis} clients={clients} /> {/* Użyj ListWindow */}
         <SettingsWindow show={showSettings} onClose={() => setShowSettings(false)} onSpeedChange={handleSpeedChange} />
