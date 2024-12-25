@@ -31,7 +31,6 @@ function App() {
     async (taxi: Taxi, target: { location: LatLng }, route: google.maps.DirectionsRoute, onFinish: () => void) => {
       const fullInterpolatedRoute = generateInterpolatedRoute(route, interPoints);
   
-      // Zapisujemy interpolowane trasy w mapie z kluczem jako `taxi.id`
       setTaxiRoutes((prev) => new Map(prev).set(taxi.id, fullInterpolatedRoute));
       
       mapRef.current?.drawRoute(taxi.id, fullInterpolatedRoute);
@@ -41,7 +40,7 @@ function App() {
         if (stepIndex >= fullInterpolatedRoute.length) {
           clearInterval(moveInterval);
           mapRef.current?.clearRoute(taxi.id);
-          onFinish(); // Wywołujemy funkcję po zakończeniu
+          onFinish();
           return;
         }
   
@@ -112,7 +111,7 @@ function App() {
             };
   
             const routeToDestination = await calculateRoute(taxi, temporaryClient);
-
+            
             updateStatus<Client>(clients, setClients, client.id, Status.Finished);
   
             await new Promise<void>((resolveDestination) =>

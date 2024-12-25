@@ -20,6 +20,7 @@ export interface MapHandle {
   drawRoute: (taxiId: number, route: google.maps.LatLng[]) => void;
   clearRouteSegment: (taxiId: number, segmentIndex: number) => void;
   clearRoute: (taxiId: number) => void;
+  removeClientMarker: (clientId: number) => void;
 }
 
 
@@ -35,15 +36,15 @@ const mapUtils = forwardRef<MapHandle, MapProps>(({
 }, ref) => {
 
   const mapRef = useRef<google.maps.Map | null>(null);
-  const taxiMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
-  const clientMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const taxiMarkersMap = useRef<Map<number, google.maps.marker.AdvancedMarkerElement>>(new Map());
+  const clientMarkersMap = useRef<Map<number, google.maps.marker.AdvancedMarkerElement>>(new Map());
   const destinationMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
 
   const updateMarkers = useCallback(() => {
     const { AdvancedMarkerElement, PinElement } = (window as any).google.maps.marker;
   
-    taxis.forEach((taxi, index) => {
-      let marker = taxiMarkersRef.current[index];
+    taxis.forEach((taxi) => {
+      let marker = taxiMarkersMap.current.get(taxi.id);
       const backgroundColor =
       taxi.status === Status.Available ? '#47AE73' :
       taxi.status === Status.Busy ? '#FB6964' :
@@ -73,24 +74,31 @@ const mapUtils = forwardRef<MapHandle, MapProps>(({
           borderColor: '#000000',
         });
   
-        marker = new AdvancedMarkerElement({
+        const newMarker = new AdvancedMarkerElement({
           position: taxi.location,
           map: mapRef.current!,
           title: taxi.name,
           content: faPin.element,
         });
-        taxiMarkersRef.current.push(marker);
+        taxiMarkersMap.current.set(taxi.id, newMarker);
       }
     });
   
     // Aktualizacja lub tworzenie markerów klientów
-    clients.forEach((client, index) => {
-      let marker = clientMarkersRef.current[index];
+    clients.forEach((client) => {
+      let marker = clientMarkersMap.current.get(client.id);
       const backgroundColor =
       client.status === Status.Available ? '#47AE73' :
       client.status === Status.Busy ? '#FB6964' :
       client.status === Status.Hibernate ? '#B0B0B0' :
       '#FFD514';
+
+      if (client.status === Status.Finished) {
+        if (marker) {
+          removeClientMarker(client.id);
+        }
+        return;
+      }
   
       if (marker) {
         marker.position = client.location;
@@ -115,13 +123,13 @@ const mapUtils = forwardRef<MapHandle, MapProps>(({
           borderColor: '#000000',
         });
   
-        marker = new AdvancedMarkerElement({
+        const newMarker = new AdvancedMarkerElement({
           position: client.location,
           map: mapRef.current!,
           title: client.name,
           content: faPin.element,
         });
-        clientMarkersRef.current.push(marker);
+        clientMarkersMap.current.set(client.id, newMarker);
       }
       
     });
@@ -147,10 +155,14 @@ const mapUtils = forwardRef<MapHandle, MapProps>(({
     destinationMarkersRef.current = destinationMarkersRef.current.filter((m) => m !== marker);
   }, []);
 
-  const removeClientMarker = useCallback((marker: google.maps.marker.AdvancedMarkerElement) => {
-    marker.map = null; // Usuń marker z mapy
-    clientMarkersRef.current = clientMarkersRef.current.filter((m) => m !== marker); // Usuń z referencji
+  const removeClientMarker = useCallback((clientId: number) => {
+    const marker = clientMarkersMap.current.get(clientId);
+    if (marker) {
+      marker.map = null;
+      clientMarkersMap.current.delete(clientId);
+    }
   }, []);
+  
 
   const clearRouteSegment = useCallback(
     (taxiId: number, segmentIndex: number) => {
@@ -211,6 +223,7 @@ const mapUtils = forwardRef<MapHandle, MapProps>(({
     drawRoute,
     clearRouteSegment,
     clearRoute,
+    removeClientMarker,
   }));
 
 
