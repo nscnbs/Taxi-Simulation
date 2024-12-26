@@ -72,9 +72,6 @@ function App() {
     [interPoints, speed, isSimulationActive]
   );
 
-
-
-
   const updateStatus = <T extends Taxi | Client>(
     entities: T[],
     setEntities: React.Dispatch<React.SetStateAction<T[]>>,
@@ -89,8 +86,6 @@ function App() {
         )
     );
   };
-
-  
   
   const assignTaxiToClient = useCallback(
     async (taxi: Taxi, client: Client) => {      
@@ -131,7 +126,6 @@ function App() {
               const destinationMarker = mapRef.current.addDestinationMarker(
                 new google.maps.LatLng(destination.lat, destination.lng)
               );
-  
   
             const routeToDestination = await calculateRoute(taxi.location, destination);
             console.log(`Taxi ${taxi.id} starts moving to destination for Client ${client.id}`);
@@ -175,7 +169,6 @@ function App() {
     [clients, taxis, moveTaxiAlongRoute, activeAssignments]
   );
   
-
   const acquireTaxiLock = async (taxiId: number) => {
     if (semaphore.has(taxiId)) {
       return semaphore.get(taxiId);
@@ -192,46 +185,40 @@ function App() {
 
   const processClients = useCallback(async () => {
     if (isProcessingClients) return; // Zapobiega wielokrotnemu uruchomieniu
-  
+
+    const availableClients = clients.filter((client) => client.status === Status.Available);
+    const availableTaxis = taxis.filter((taxi) => taxi.status === Status.Available);
+
+    if (availableClients.length === 0 || availableTaxis.length === 0) return;
+
     setIsProcessingClients(true);
     try {
-      const availableClients = clients.filter((client) => client.status === Status.Available);
-  
-      await Promise.all(
-        availableClients.map(async (client) => {
-          // Filtruj dostępne taksówki uwzględniając ich stan i blokadę
-          const availableTaxis = taxis.filter(
-            (taxi) =>
-              taxi.status === Status.Available &&
-              !activeAssignments.has(generateUniqueAssignmentKey(taxi.id, client.id)) &&
-              !semaphore.has(taxi.id) // Sprawdź, czy taksówka nie jest aktualnie w użyciu
-          );
-  
-          if (availableTaxis.length === 0) return;
-  
-          const closestTaxi = await findClosestTaxi(client.location, availableTaxis);
-          if (closestTaxi) {
-            assignTaxiToClient(closestTaxi, client);
-          }
-        })
-      );
+        await Promise.all(
+            availableClients.map(async (client) => {
+                const closestTaxi = await findClosestTaxi(client.location, availableTaxis);
+                if (closestTaxi) {
+                    assignTaxiToClient(closestTaxi, client);
+                }
+            })
+        );
     } finally {
-      setIsProcessingClients(false);
+        setIsProcessingClients(false);
     }
-  }, [clients, taxis, activeAssignments, assignTaxiToClient, isProcessingClients]);
-  
-  
+  }, [clients, taxis, assignTaxiToClient, isProcessingClients]);
 
   
-
   useEffect(() => {
     if (isSimulationActive) {
-      processClients();
+        const hasAvailableClients = clients.some((client) => client.status === Status.Available);
+        const hasAvailableTaxis = taxis.some((taxi) => taxi.status === Status.Available);
+
+        if (hasAvailableClients && hasAvailableTaxis) {
+            processClients();
+        }
     }
   }, [clients, taxis, isSimulationActive, processClients]);
-  
-  
 
+  
   const generateLocation = {
     lat: mapCenter.lat + (Math.random() - 0.5) * 0.08,
     lng: mapCenter.lng + (Math.random() - 0.5) * 0.08,
