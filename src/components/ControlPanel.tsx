@@ -14,7 +14,6 @@ interface ControlPanelProps {
   onAddClient: () => void;
   onStartSimulation: () => void;
   onPauseSimulation: () => void; // Dodano obsługę pauzy
-  onStopSimulation: () => void;
   onRestartSimulation: () => void; // Dodano obsługę restartu
   onToggleList: () => void; // Dodano obsługę restartu
   onSettings: () => void; // Dodano obsługę ustawień
@@ -26,7 +25,6 @@ function ControlPanel({
   onAddClient,
   onStartSimulation,
   onPauseSimulation,
-  onStopSimulation,
   onRestartSimulation,
   onToggleList,
   onSettings,
@@ -42,9 +40,6 @@ function ControlPanel({
       </button>
       <button onClick={onAddClient}>
         <img src={ClientIcon} alt="Add Client" />
-      </button>
-      <button onClick={onStopSimulation}>
-        <img src={StopIcon} alt="Stop Simulation" />
       </button>
       <button onClick={onRestartSimulation}>
         <img src={RestartIcon} alt="Restart Simulation" />

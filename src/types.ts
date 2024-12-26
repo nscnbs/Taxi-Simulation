@@ -16,7 +16,6 @@ export type Taxi = {
   name: string;
   location: LatLng;
   status: Status;
-  isLocked: boolean;
   rides: number;
 };
 
@@ -25,5 +24,4 @@ export type Client = {
   name: string;
   location: LatLng;
   status: Status;
-  isLocked: boolean;
 };
