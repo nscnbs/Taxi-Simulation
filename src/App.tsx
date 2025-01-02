@@ -11,16 +11,23 @@ import { findClosestTaxi, calculateRoute, generateInterpolatedRoute } from './se
 function App() {
   const [taxis, setTaxis] = useState<Taxi[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  const [isSimulationActive, setIsSimulationActive] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [showList, setShowList] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [speed, setSpeed] = useState<number>(10);
-  const [interPoints, setInterPoints] = useState<number>(100);
   const [taxiRoutes, setTaxiRoutes] = useState<Map<number, google.maps.LatLng[]>>(new Map());
   const [taxiPolylines, setTaxiPolylines] = useState<Map<number, google.maps.Polyline>>(new Map());
   const [activeAssignments, setActiveAssignments] = useState<Set<string>>(new Set());
   const [isProcessingClients, setIsProcessingClients] = useState(false);
+  const [interPoints, setInterPoints] = useState<number>(100);
+
+  const [mapKey, setMapKey] = useState(0);
+  const [isSimulationActive, setIsSimulationActive] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showList, setShowList] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  
+  // Domyślne ustawienia
+  const [speed, setSpeed] = useState<number>(10);
+  const [trafficModel, setTrafficModel] = useState<string>("pessimistic");
+  const [distanceMetric, setDistanceMetric] = useState("duration");
+
 
 
   const mapRef = useRef<MapHandle>(null);
@@ -44,7 +51,7 @@ function App() {
       let stepIndex = 0;
 
       const move = () => {
-        if (!isSimulationActive) return; // Wstrzymanie symulacji
+        if (!isSimulationActive) return;
         if (stepIndex >= fullInterpolatedRoute.length) {
           mapRef.current?.clearRoute(taxi.id);
           setTaxiRoutes((prev) => {
@@ -94,7 +101,7 @@ function App() {
         taxi.status !== Status.Available ||
         client.status !== Status.Available ||
         activeAssignments.has(assignmentKey) ||
-        semaphore.has(taxi.id) // Dodano sprawdzenie
+        semaphore.has(taxi.id)
       ) {
         console.log(`Assignment skipped for Taxi ${taxi.id} and Client ${client.id}`);
         return;
@@ -110,7 +117,7 @@ function App() {
         updateStatus<Client>(clients, setClients, client.id, Status.Busy);
         updateStatus<Taxi>(taxis, setTaxis, taxi.id, Status.Busy);
 
-        const routeToClient = await calculateRoute(taxi.location, client.location);
+        const routeToClient = await calculateRoute(taxi.location, client.location, trafficModel);
         console.log(`Taxi ${taxi.id} starts moving to Client ${client.id}`);
   
         await new Promise<void>((resolve) =>
@@ -127,7 +134,7 @@ function App() {
                 new google.maps.LatLng(destination.lat, destination.lng)
               );
   
-            const routeToDestination = await calculateRoute(taxi.location, destination);
+            const routeToDestination = await calculateRoute(taxi.location, destination, trafficModel);
             console.log(`Taxi ${taxi.id} starts moving to destination for Client ${client.id}`);
             
             updateStatus<Client>(clients, setClients, client.id, Status.Finished);
@@ -166,7 +173,7 @@ function App() {
       });
       }
     },
-    [clients, taxis, moveTaxiAlongRoute, activeAssignments]
+    [clients, taxis, moveTaxiAlongRoute, activeAssignments, trafficModel]
   );
   
   const acquireTaxiLock = async (taxiId: number) => {
@@ -182,7 +189,6 @@ function App() {
     semaphore.delete(taxiId);
   };
   
-
   const processClients = useCallback(async () => {
     if (isProcessingClients) return; // Zapobiega wielokrotnemu uruchomieniu
 
@@ -195,7 +201,7 @@ function App() {
     try {
         await Promise.all(
             availableClients.map(async (client) => {
-                const closestTaxi = await findClosestTaxi(client.location, availableTaxis);
+                const closestTaxi = await findClosestTaxi(client.location, availableTaxis, trafficModel, distanceMetric);
                 if (closestTaxi) {
                     assignTaxiToClient(closestTaxi, client);
                 }
@@ -204,7 +210,7 @@ function App() {
     } finally {
         setIsProcessingClients(false);
     }
-  }, [clients, taxis, assignTaxiToClient, isProcessingClients]);
+  }, [clients, taxis, assignTaxiToClient, isProcessingClients, trafficModel, distanceMetric]);
 
   
   useEffect(() => {
@@ -259,16 +265,17 @@ function App() {
 
   const handleRestartSimulation = () => {
     setTaxis([]);
+    setClients([]);
+    setTaxiRoutes(new Map());
+    setTaxiPolylines(new Map());
+    mapRef.current?.clearAllRoutes();
+    mapRef.current?.resetMap();
+    setMapKey((prevKey) => prevKey + 1);
     setIsSimulationActive(false);
   };
-
+  
   const handlePauseSimulation = () => {
-    if (isSimulationActive) {
-        setIsSimulationActive(false);
-    }
-    else{
-        handleStartSimulation();
-    }
+    setIsSimulationActive((prev) => !prev);
   };
   
   const handleSpeedChange = (newSpeed: number) => {
@@ -289,7 +296,8 @@ function App() {
 
   return (
     <div className={`App ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
-        <MapComponent 
+        <MapComponent
+            key={mapKey}
             ref={mapRef}
             center={mapCenter} 
             zoom={13} 
@@ -300,8 +308,17 @@ function App() {
             taxiPolylines={taxiPolylines}
             setTaxiPolylines={setTaxiPolylines}
         />
-        <ListWindow show={showList} onClose={() => setShowList(false)} taxis={taxis} clients={clients} /> {/* Użyj ListWindow */}
-        <SettingsWindow show={showSettings} onClose={() => setShowSettings(false)} onSpeedChange={handleSpeedChange} />
+        <ListWindow show={showList} onClose={() => setShowList(false)} taxis={taxis} clients={clients} />
+        <SettingsWindow
+            show={showSettings}
+            onClose={() => setShowSettings(false)}
+            onSpeedChange={handleSpeedChange}
+            trafficModel={trafficModel}
+            onTrafficChange={setTrafficModel}
+            distanceMetric={distanceMetric}
+            onDistanceMetricChange={setDistanceMetric}
+        />
+
         <div className={`control-panel ${sidebarOpen ? '' : 'sidebar-closed'}`}>
             <ControlPanel
                 onStartSimulation={handleStartSimulation}

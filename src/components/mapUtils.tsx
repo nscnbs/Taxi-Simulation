@@ -21,6 +21,8 @@ export interface MapHandle {
   clearRouteSegment: (taxiId: number, segmentIndex: number) => void;
   clearRoute: (taxiId: number) => void;
   removeClientMarker: (clientId: number) => void;
+  clearAllRoutes: () => void;
+  resetMap: () => void;
 }
 
 
@@ -40,9 +42,8 @@ const mapUtils = forwardRef<MapHandle, MapProps>(({
   const clientMarkersMap = useRef<Map<number, google.maps.marker.AdvancedMarkerElement>>(new Map());
   const destinationMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
 
-  const updateMarkers = useCallback(() => {
+  const updateTaxiMarkers = useCallback(() => {
     const { AdvancedMarkerElement, PinElement } = (window as any).google.maps.marker;
-  
     taxis.forEach((taxi) => {
       let marker = taxiMarkersMap.current.get(taxi.id);
       const backgroundColor =
@@ -83,8 +84,10 @@ const mapUtils = forwardRef<MapHandle, MapProps>(({
         taxiMarkersMap.current.set(taxi.id, newMarker);
       }
     });
-  
-    // Aktualizacja lub tworzenie markerów klientów
+  }, [taxis]);   
+
+  const updateClientMarkers = useCallback(() => {
+    const { AdvancedMarkerElement, PinElement } = (window as any).google.maps.marker;
     clients.forEach((client) => {
       let marker = clientMarkersMap.current.get(client.id);
       const backgroundColor =
@@ -133,7 +136,13 @@ const mapUtils = forwardRef<MapHandle, MapProps>(({
       }
       
     });
-  }, [taxis, clients]);
+  }, [clients]);
+
+  const updateMarkers = useCallback(() => { 
+    updateTaxiMarkers();
+    updateClientMarkers();
+  }, [updateTaxiMarkers, updateClientMarkers]);
+    
 
   const addDestinationMarker = useCallback((position: google.maps.LatLng ) => {
     const beachFlagImg = document.createElement('img');
@@ -162,7 +171,13 @@ const mapUtils = forwardRef<MapHandle, MapProps>(({
       clientMarkersMap.current.delete(clientId);
     }
   }, []);
-  
+
+  const clearAllDestinationMarkers = useCallback(() => {
+    destinationMarkersRef.current.forEach((marker) => {
+      marker.map = null;
+    });
+    destinationMarkersRef.current = [];
+  }, []);  
 
   const clearRouteSegment = useCallback(
     (taxiId: number, segmentIndex: number) => {
@@ -196,6 +211,20 @@ const mapUtils = forwardRef<MapHandle, MapProps>(({
       return updatedRoutes;
     });
   }, [setTaxiPolylines, setTaxiRoutes]);
+
+  const clearAllRoutes = () => {
+    taxiPolylines.forEach((polyline) => polyline.setMap(null));
+    setTaxiPolylines(new Map());
+  };
+
+  const resetMap = () => {
+    mapRef.current?.setCenter(center);
+    setTaxiRoutes(new Map());
+    setTaxiPolylines(new Map());
+    clearAllRoutes();
+    clearAllDestinationMarkers();
+  };
+
   
   const drawRoute = useCallback(
     (taxiId: number, route: google.maps.LatLng[]) => {
@@ -213,17 +242,18 @@ const mapUtils = forwardRef<MapHandle, MapProps>(({
   
       setTaxiPolylines((prev) => new Map(prev).set(taxiId, routePath));
     },
-    []
+    [setTaxiPolylines]
   );
 
-    
   useImperativeHandle(ref, () => ({
     addDestinationMarker,
     removeDestinationMarker,
     drawRoute,
     clearRouteSegment,
     clearRoute,
+    clearAllRoutes,
     removeClientMarker,
+    resetMap,
   }));
 
 

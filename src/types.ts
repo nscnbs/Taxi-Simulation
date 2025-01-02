@@ -17,6 +17,8 @@ export type Taxi = {
   location: LatLng;
   status: Status;
   rides: number;
+  currentStep?: number;
+  isPaused?: boolean;
 };
 
 export type Client = {

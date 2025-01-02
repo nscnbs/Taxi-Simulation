@@ -24,6 +24,7 @@
   .settings-window button {
     background-color: #ff4d4d; /* Czerwony przycisk */
     color: white; /* Kolor tekstu */
+    border: none; /* Bez ramki */
     margin: 5px; /* Odstępy między przyciskami */
     padding: 8px 12px; /* Wewnętrzne odstępy */
     border-radius: 5px; /* Zaokrąglone rogi */
@@ -35,3 +36,6 @@
     background-color: #ff1a1a; /* Czerwony kolor przy najechaniu */
   }
   
+  .settings-window button.active {
+    background-color: rgb(55, 156, 77);
+  }

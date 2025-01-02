@@ -1,23 +1,23 @@
 import React from 'react';
-import './ControlPanel.css'; // Zaktualizowany plik CSS dla paska
+import './ControlPanel.css';
 import TaxiIcon from '../assets/icons/taxi.png';
 import ClientIcon from '../assets/icons/client.png';
 import StartIcon from '../assets/icons/start.png';
-import PauseIcon from '../assets/icons/pause.png'; // Ikona pauzy
+import PauseIcon from '../assets/icons/pause.png';
 import StopIcon from '../assets/icons/stop.png';
-import RestartIcon from '../assets/icons/restart.png'; // Ikona restartu
-import ListIcon from '../assets/icons/list.png'; // Ikona restartu
-import SettingsIcon from '../assets/icons/settings.png'; // Ikona ustawień
+import RestartIcon from '../assets/icons/restart.png';
+import ListIcon from '../assets/icons/list.png';
+import SettingsIcon from '../assets/icons/settings.png';
 
 interface ControlPanelProps {
   onAddTaxi: () => void;
   onAddClient: () => void;
   onStartSimulation: () => void;
-  onPauseSimulation: () => void; // Dodano obsługę pauzy
-  onRestartSimulation: () => void; // Dodano obsługę restartu
-  onToggleList: () => void; // Dodano obsługę restartu
-  onSettings: () => void; // Dodano obsługę ustawień
-  isSimulationActive: boolean; // Dodano status symulacji
+  onPauseSimulation: () => void;
+  onRestartSimulation: () => void;
+  onToggleList: () => void;
+  onSettings: () => void;
+  isSimulationActive: boolean;
 }
 
 function ControlPanel({
@@ -28,12 +28,12 @@ function ControlPanel({
   onRestartSimulation,
   onToggleList,
   onSettings,
-  isSimulationActive, // Odbierz status symulacji
+  isSimulationActive,
 }: ControlPanelProps) {
   return (
     <div className="control-panel">
          <button onClick={isSimulationActive ? onPauseSimulation : onStartSimulation}>
-        <img src={isSimulationActive ? PauseIcon : StartIcon} alt={isSimulationActive ? "Pause Simulation" : "Start Simulation"} />
+        <img src={isSimulationActive ? StopIcon : StartIcon} alt={isSimulationActive ? "Pause Simulation" : "Start Simulation"} />
       </button>
       <button onClick={onAddTaxi}>
         <img src={TaxiIcon} alt="Add Taxi" />

@@ -5,12 +5,28 @@ interface SettingsWindowProps {
   show: boolean;
   onClose: () => void;
   onSpeedChange: (speed: number) => void;
+  trafficModel: string;
+  onTrafficChange: (value: string) => void;
+  distanceMetric: string;
+  onDistanceMetricChange: (value: string) => void;
 }
 
-const SettingsWindow: React.FC<SettingsWindowProps> = ({ show, onClose, onSpeedChange }) => {
+const SettingsWindow: React.FC<SettingsWindowProps> = ({ 
+  show, 
+  onClose, 
+  onSpeedChange,
+  trafficModel,
+  onTrafficChange,
+  distanceMetric,
+  onDistanceMetricChange,
+}) => {
   const [isDragging, setIsDragging] = useState(false);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [position, setPosition] = useState({ top: 20, left: 20 });
+  const [activeSpeed, setActiveSpeed] = useState<number | null>(null);
+  const [activeTrafficModel, setActiveTrafficModel] = useState<string | null>(null);
+  const [activeDistanceMetric, setActiveDistanceMetric] = useState<string | null>(null);
+
   const windowRef = useRef<HTMLDivElement>(null);
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -51,12 +67,48 @@ const SettingsWindow: React.FC<SettingsWindowProps> = ({ show, onClose, onSpeedC
       onMouseDown={handleMouseDown}
     >
       <h2>Speed</h2>
-      <button onClick={() => onSpeedChange(100)}>x1</button>
-      <button onClick={() => onSpeedChange(50)}>x2</button>
-      <button onClick={() => onSpeedChange(20)}>x5</button>
-      <button onClick={() => onSpeedChange(10)}>x10</button>
-      <button onClick={() => onSpeedChange(5)}>x20</button>
-      <button onClick={onClose}>Close</button>
+      {[10, 20, 50, 100, 200].map((speed) => (
+        <button
+          key={speed}
+          className={activeSpeed === speed ? 'active' : ''}
+          onClick={() => {
+            onSpeedChange(speed);
+            setActiveSpeed(speed);
+          }}
+        >
+          x{speed / 10}
+        </button>
+      ))}
+      <h2>Traffic Model</h2>
+      {['optimistic', 'pessimistic'].map((model) => (
+        <button
+          key={model}
+          className={activeTrafficModel === model ? 'active' : ''}
+          onClick={() => {
+            onTrafficChange(model);
+            setActiveTrafficModel(model);
+          }}
+        >
+          {model.charAt(0).toUpperCase() + model.slice(1)}
+        </button>
+      ))}
+      <h2>Distance Metric</h2>
+      {['duration', 'distance'].map((metric) => (
+        <button
+          key={metric}
+          className={activeDistanceMetric === metric ? 'active' : ''}
+          onClick={() => {
+            onDistanceMetricChange(metric);
+            setActiveDistanceMetric(metric);
+          }}
+        >
+          {metric.charAt(0).toUpperCase() + metric.slice(1)}
+        </button>
+      ))}
+      <h2></h2>
+      <button className="close-button" onClick={onClose}>
+        Close
+      </button>
     </div>
   );
 };

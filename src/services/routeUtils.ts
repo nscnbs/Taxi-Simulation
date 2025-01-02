@@ -2,22 +2,24 @@ import { Taxi, Client, LatLng, Status } from '../types';
 
 const routeCache = new Map<string, google.maps.LatLng[]>();
 
-export const calculateRoute = async (origin: LatLng, destination: LatLng) => {
+export const calculateRoute = async (origin: LatLng, destination: LatLng, trafficModel: string,) => {
   const directionsService = new google.maps.DirectionsService();
   const request: google.maps.DirectionsRequest = {
     origin: new google.maps.LatLng(origin.lat, origin.lng),
     destination: new google.maps.LatLng(destination.lat, destination.lng),
     travelMode: google.maps.TravelMode.DRIVING,
-    provideRouteAlternatives: true,
+    //provideRouteAlternatives: true,
     drivingOptions: {
       departureTime: new Date(),
-      trafficModel: google.maps.TrafficModel.PESSIMISTIC
+      trafficModel: trafficModel as google.maps.TrafficModel,
     }
   };
 
   return new Promise<google.maps.DirectionsRoute>((resolve, reject) => {
     directionsService.route(request, (result, status) => {
       if (status === 'OK' && result && result.routes.length > 0) {
+        console.log("in calculateRoute")
+        console.log("Traffic Model: ", trafficModel)
         resolve(result.routes[0]); // Zwracaj główną trasę
       } else {
         reject(new Error(`Failed to calculate route: ${status}`));
@@ -30,11 +32,13 @@ export const calculateRoute = async (origin: LatLng, destination: LatLng) => {
 export const findClosestTaxi = async (
   clientLocation: LatLng,
   taxis: Taxi[],
+  trafficModel: string, 
+  metric: string
 ): Promise<Taxi | null> => {
   const travelTimes = await Promise.all(
     taxis.map(async (taxi) => ({
       taxi,
-      travelTime: await calculateTravelTime(clientLocation, taxi.location),
+      travelTime: await calculateTravelTime(clientLocation, taxi.location, trafficModel, metric),
     }))
   );
 
@@ -42,24 +46,27 @@ export const findClosestTaxi = async (
 };
 
 
-export async function calculateTravelTime(pointA: LatLng, pointB: LatLng): Promise<number> {
+export async function calculateTravelTime(origin: LatLng, destination: LatLng, trafficModel: string, metric: string): Promise<number> {
   const service = new google.maps.DistanceMatrixService();
   return new Promise((resolve, reject) => {
     service.getDistanceMatrix(
       {
-        origins: [new google.maps.LatLng(pointA.lat, pointA.lng)],
-        destinations: [new google.maps.LatLng(pointB.lat, pointB.lng)],
+        origins: [new google.maps.LatLng(origin.lat, origin.lng)],
+        destinations: [new google.maps.LatLng(destination.lat, destination.lng)],
         travelMode: google.maps.TravelMode.DRIVING,
         drivingOptions: {
           departureTime: new Date(),
-          trafficModel: google.maps.TrafficModel.PESSIMISTIC
+          trafficModel: trafficModel as google.maps.TrafficModel,
         }
       },
       (response, status) => {
         if (status === google.maps.DistanceMatrixStatus.OK && response) {
-          const element = response.rows[0]?.elements[0];
-          if (element && element.duration) {
-            const travelTime = element.duration.value; // Czas przejazdu w sekundach
+          const result = response.rows[0]?.elements[0];
+          if (result && result.duration) {
+            console.log("in calculateTravelTime")
+            console.log("Traffic Model: ", trafficModel)
+            console.log("Distance Metric: ", metric)
+            const travelTime = metric === 'duration' ? result.duration.value : result.distance.value;
             resolve(travelTime);
           } else {
             reject('Unable to retrieve travel time from response');
@@ -71,7 +78,6 @@ export async function calculateTravelTime(pointA: LatLng, pointB: LatLng): Promi
     );
   });
 }
-
 
 
 const interpolatePoints = (start: google.maps.LatLng, end: google.maps.LatLng, numPoints: number): google.maps.LatLng[] => {
