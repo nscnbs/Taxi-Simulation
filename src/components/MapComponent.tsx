@@ -1,6 +1,8 @@
-import React, { useCallback, useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
-import { loadGoogleMapsAPI } from '../services/googleMapsAPI';
-import { Taxi, Client, Status } from '../types';
+import React, { useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { loadGoogleMapsAPI } from '../services/GoogleMapsService';
+import { Taxi } from '../types/Taxi';
+import { Client } from '../types/Client';
+import { Status } from '../types/Simulation';
 
 interface MapProps {
   center: { lat: number; lng: number };

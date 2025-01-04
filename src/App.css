@@ -3,7 +3,6 @@
   flex-direction: row;
 }
 
-
 #map {
   width: calc(100% - 90px);
   height: 100vh;
@@ -65,7 +64,6 @@
 .sidebar-closed ~ .toggle-button {
   right: 0; /* Przesunięcie przycisku do krawędzi, gdy pasek jest zamknięty */
 }
-
 
 @media (max-width: 768px) {
   .App {

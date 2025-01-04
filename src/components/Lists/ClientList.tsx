@@ -1,5 +1,4 @@
-import React from 'react';
-import { Client } from '../types';
+import { Client } from "../../types/Client";
 
 interface ClientListProps {
   clients: Client[];

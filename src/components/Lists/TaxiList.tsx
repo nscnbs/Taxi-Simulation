@@ -1,5 +1,4 @@
-import React from 'react';
-import { Taxi } from '../types';
+import { Taxi } from "../../types/Taxi";
 
 interface TaxiListProps {
   taxis: Taxi[];
@@ -15,7 +14,8 @@ function TaxiList({ taxis }: TaxiListProps) {
       <ul>
         {taxis.map((taxi) => (
           <li key={taxi.id}>
-            {taxi.name} - ID: {taxi.id} - Status: {taxi.status} - Rides: {taxi.rides}
+            {taxi.name} - ID: {taxi.id} - Status: {taxi.status} - Rides:{" "}
+            {taxi.rides}
           </li>
         ))}
       </ul>

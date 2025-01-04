@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import './SettingsWindow.css';
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import "./SettingsWindow.css";
 
 interface SettingsWindowProps {
   show: boolean;
@@ -11,9 +11,9 @@ interface SettingsWindowProps {
   onDistanceMetricChange: (value: string) => void;
 }
 
-const SettingsWindow: React.FC<SettingsWindowProps> = ({ 
-  show, 
-  onClose, 
+const SettingsWindow: React.FC<SettingsWindowProps> = ({
+  show,
+  onClose,
   onSpeedChange,
   trafficModel,
   onTrafficChange,
@@ -24,8 +24,12 @@ const SettingsWindow: React.FC<SettingsWindowProps> = ({
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [position, setPosition] = useState({ top: 20, left: 20 });
   const [activeSpeed, setActiveSpeed] = useState<number | null>(null);
-  const [activeTrafficModel, setActiveTrafficModel] = useState<string | null>(null);
-  const [activeDistanceMetric, setActiveDistanceMetric] = useState<string | null>(null);
+  const [activeTrafficModel, setActiveTrafficModel] = useState<string | null>(
+    null
+  );
+  const [activeDistanceMetric, setActiveDistanceMetric] = useState<
+    string | null
+  >(null);
 
   const windowRef = useRef<HTMLDivElement>(null);
 
@@ -34,26 +38,29 @@ const SettingsWindow: React.FC<SettingsWindowProps> = ({
     setOffset({ x: e.clientX - position.left, y: e.clientY - position.top });
   };
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (isDragging) {
-      setPosition({
-        top: e.clientY - offset.y,
-        left: e.clientX - offset.x,
-      });
-    }
-  }, [isDragging, offset]);
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (isDragging) {
+        setPosition({
+          top: e.clientY - offset.y,
+          left: e.clientX - offset.x,
+        });
+      }
+    },
+    [isDragging, offset]
+  );
 
   const handleMouseUp = () => {
     setIsDragging(false);
   };
 
   useEffect(() => {
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
     };
   }, [handleMouseMove]);
 
@@ -70,7 +77,7 @@ const SettingsWindow: React.FC<SettingsWindowProps> = ({
       {[10, 20, 50, 100, 200].map((speed) => (
         <button
           key={speed}
-          className={activeSpeed === speed ? 'active' : ''}
+          className={activeSpeed === speed ? "active" : ""}
           onClick={() => {
             onSpeedChange(speed);
             setActiveSpeed(speed);
@@ -80,10 +87,10 @@ const SettingsWindow: React.FC<SettingsWindowProps> = ({
         </button>
       ))}
       <h2>Traffic Model</h2>
-      {['optimistic', 'pessimistic'].map((model) => (
+      {["optimistic", "pessimistic"].map((model) => (
         <button
           key={model}
-          className={activeTrafficModel === model ? 'active' : ''}
+          className={activeTrafficModel === model ? "active" : ""}
           onClick={() => {
             onTrafficChange(model);
             setActiveTrafficModel(model);
@@ -93,10 +100,10 @@ const SettingsWindow: React.FC<SettingsWindowProps> = ({
         </button>
       ))}
       <h2>Distance Metric</h2>
-      {['duration', 'distance'].map((metric) => (
+      {["duration", "distance"].map((metric) => (
         <button
           key={metric}
-          className={activeDistanceMetric === metric ? 'active' : ''}
+          className={activeDistanceMetric === metric ? "active" : ""}
           onClick={() => {
             onDistanceMetricChange(metric);
             setActiveDistanceMetric(metric);

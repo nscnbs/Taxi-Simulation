@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import TaxiList from './TaxiList';
-import ClientList from './ClientList';
-import './ListWindow.css';
+import React, { useState, useEffect, useCallback } from "react";
+import TaxiList from "../Lists/TaxiList";
+import ClientList from "../Lists/ClientList";
+import "./ListWindow.css";
 
 interface ListWindowProps {
   show: boolean;
@@ -10,7 +10,12 @@ interface ListWindowProps {
   clients: any[];
 }
 
-const ListWindow: React.FC<ListWindowProps> = ({ show, onClose, taxis, clients }) => {
+const ListWindow: React.FC<ListWindowProps> = ({
+  show,
+  onClose,
+  taxis,
+  clients,
+}) => {
   const [isDragging, setIsDragging] = useState(false);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [position, setPosition] = useState({ top: 20, left: 1100 });
@@ -20,23 +25,26 @@ const ListWindow: React.FC<ListWindowProps> = ({ show, onClose, taxis, clients }
     setOffset({ x: e.clientX - position.left, y: e.clientY - position.top });
   };
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (isDragging) {
-      setPosition({ top: e.clientY - offset.y, left: e.clientX - offset.x });
-    }
-  }, [isDragging, offset]);
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (isDragging) {
+        setPosition({ top: e.clientY - offset.y, left: e.clientX - offset.x });
+      }
+    },
+    [isDragging, offset]
+  );
 
   const handleMouseUp = () => {
     setIsDragging(false);
   };
 
   useEffect(() => {
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
     };
   }, [handleMouseMove]);
 

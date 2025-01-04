@@ -1,15 +1,14 @@
-import React from 'react';
-import './ControlPanel.css';
-import TaxiIcon from '../assets/icons/taxi.png';
-import ClientIcon from '../assets/icons/client.png';
-import StartIcon from '../assets/icons/start.png';
-import PauseIcon from '../assets/icons/pause.png';
-import StopIcon from '../assets/icons/stop.png';
-import RestartIcon from '../assets/icons/restart.png';
-import ListIcon from '../assets/icons/list.png';
-import SettingsIcon from '../assets/icons/settings.png';
+import "./Sidebar.css";
+import TaxiIcon from "../../assets/icons/taxi.png";
+import ClientIcon from "../../assets/icons/client.png";
+import StartIcon from "../../assets/icons/start.png";
+//import PauseIcon from "../../assets/icons/pause.png";
+import StopIcon from "../../assets/icons/stop.png";
+import RestartIcon from "../../assets/icons/restart.png";
+import ListIcon from "../../assets/icons/list.png";
+import SettingsIcon from "../../assets/icons/settings.png";
 
-interface ControlPanelProps {
+interface SidebarProps {
   onAddTaxi: () => void;
   onAddClient: () => void;
   onStartSimulation: () => void;
@@ -20,7 +19,7 @@ interface ControlPanelProps {
   isSimulationActive: boolean;
 }
 
-function ControlPanel({
+function Sidebar({
   onAddTaxi,
   onAddClient,
   onStartSimulation,
@@ -29,11 +28,16 @@ function ControlPanel({
   onToggleList,
   onSettings,
   isSimulationActive,
-}: ControlPanelProps) {
+}: SidebarProps) {
   return (
     <div className="control-panel">
-         <button onClick={isSimulationActive ? onPauseSimulation : onStartSimulation}>
-        <img src={isSimulationActive ? StopIcon : StartIcon} alt={isSimulationActive ? "Pause Simulation" : "Start Simulation"} />
+      <button
+        onClick={isSimulationActive ? onPauseSimulation : onStartSimulation}
+      >
+        <img
+          src={isSimulationActive ? StopIcon : StartIcon}
+          alt={isSimulationActive ? "Pause Simulation" : "Start Simulation"}
+        />
       </button>
       <button onClick={onAddTaxi}>
         <img src={TaxiIcon} alt="Add Taxi" />
@@ -54,4 +58,4 @@ function ControlPanel({
   );
 }
 
-export default ControlPanel;
+export default Sidebar;

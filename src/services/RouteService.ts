@@ -1,4 +1,5 @@
-import { Taxi, Client, LatLng, Status } from '../types';
+import { Taxi } from '../types/Taxi';
+import { LatLng } from '../types/Simulation';
 
 const routeCache = new Map<string, google.maps.LatLng[]>();
 
